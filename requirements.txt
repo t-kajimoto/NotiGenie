@@ -2,4 +2,4 @@ mcp-notion
 google-generativeai
 google-cloud-speech
 gTTS
-RPi.GPIO
+notion-client
