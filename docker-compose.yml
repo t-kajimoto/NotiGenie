@@ -1,0 +1,18 @@
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # "./src"をコンテナ内の"/app"にマウントする
+    # これにより、ローカルでのコード変更が即座にコンテナに反映される
+    volumes:
+      - ./src:/app
+    # .envファイルの内容を環境変数としてコンテナに読み込む
+    env_file:
+      - .env
+    # コンテナを起動し続けるための設定
+    # tty: trueは、コンテナの標準入力を開き続けるために必要
+    tty: true
