@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application's code into the container at /app
 # This assumes the application code will be in a 'src' directory
-COPY src/ . 
+ 
 
 # Define the command to run the application's entry point
 CMD ["python", "main.py"]
