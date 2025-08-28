@@ -25,6 +25,19 @@ Raspberry PiのGPIOピンに接続された物理ボタンの押下イベント�
 
 ### 3.3. パブリックインターフェース
 
+```mermaid
+classDiagram
+    class ButtonHandler {
+        -button_pin: int
+        -bouncetime: int
+        -_button_press_callback: function
+        +__init__(button_pin, bouncetime)
+        +set_button_press_callback(callback)
+        +cleanup()
+        -_internal_callback(channel)
+    }
+```
+
 | メソッド/プロパティ | 引数 | 戻り値 | 説明 |
 | :--- | :--- | :--- | :--- |
 | `__init__(self, button_pin, bouncetime)` | `button_pin` (int): BCMモードのGPIOピン番号。<br>`bouncetime` (int): チャタリング防止時間(ms)。 | `None` | コンストラクタ。GPIOの初期設定を行う。 |
