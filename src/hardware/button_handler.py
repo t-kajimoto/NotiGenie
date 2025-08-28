@@ -42,6 +42,23 @@ class MockGPIO:
 
     def add_event_detect(self, pin, edge, callback, bouncetime):
         print(f"[DUMMY] Event detection added for pin {pin} on edge {edge} with bouncetime {bouncetime}")
+        # ダミーモードでは、別スレッドでEnterキー入力を待ち受ける
+        if not IS_RASPBERRY_PI:
+            import threading
+            self._dummy_input_thread = threading.Thread(target=self._wait_for_enter, args=(callback, pin))
+            self._dummy_input_thread.daemon = True # メインスレッド終了時に一緒に終了
+            self._dummy_input_thread.start()
+
+    def _wait_for_enter(self, callback, pin):
+        print("（ダミーモードです。Enterキーを押すと、ボタンが押されたことをシミュレートします）")
+        try:
+            input() # Enterキーが押されるのを待つ
+            callback(pin) # 擬似的にコールバックを呼び出す
+        except EOFError:
+            # 非対話型実行の場合、EOFErrorが発生するので無視する
+            pass
+        except Exception as e:
+            print(f"ダミー入力スレッドでエラーが発生しました: {e}")
 
     def cleanup(self):
         print("[DUMMY] GPIO cleanup called")
@@ -135,11 +152,7 @@ if __name__ == '__main__':
 
     print(f"ピン{button_handler.button_pin}のボタン押下を待っています...")
 
-    # ダミーモードの場合、5秒後に擬似的にコールバックを呼び出して動作確認をする
-    if not IS_RASPBERRY_PI:
-        print("（ダミーモードです。5秒後に擬似的なコールバックを呼び出します）")
-        time.sleep(5)
-        sample_callback()
+    
 
     try:
         # スクリプトがすぐに終了してしまわないように、無限ループで待機する。

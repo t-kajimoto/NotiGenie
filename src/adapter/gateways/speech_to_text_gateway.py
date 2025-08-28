@@ -1,7 +1,7 @@
 
-from src.domain.use_cases.record_and_transcribe import SpeechToTextGateway
-from src.domain.entities.audio import AudioData
-from src.domain.entities.transcription import Transcription
+from domain.use_cases.record_and_transcribe import SpeechToTextGateway
+from domain.entities.audio import AudioData
+from domain.entities.transcription import Transcription
 from google.cloud import speech
 import os
 from scipy.io.wavfile import write
