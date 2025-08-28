@@ -1,4 +1,3 @@
-
 # クリーンアーキテクチャ設計書
 
 ## 1. 概要
@@ -32,40 +31,78 @@ src/
 
 ## 4. 各層の責務とクラス設計
 
-### 4.1. Domain Layer (ドメイン層)
-
-アプリケーションの最も中心的な部分。他のどの層にも依存しない。
-
-- **`domain/entities/`**: ビジネスの核となるデータ構造やオブジェクトを定義する。
-    - `audio.py`: 音声データのエンティティ。データ本体やサンプリングレートを持つ。
-    - `transcription.py`: 文字起こし結果のエンティティ。テキスト本体や信頼度を持つ。
-
-- **`domain/use_cases/`**: アプリケーションの具体的なユースケース（やりたいこと）を実装する。
-    - `record_and_transcribe.py`: 「録音して文字起こしする」という一連の流れを実装する。オーディオ録音と文字起こしのためのインターフェース（ポート）を定義し、それに依存する。
-
-### 4.2. Adapter Layer (アダプター層)
-
-ドメイン層とフレームワーク層の間のデータ変換を担う。
-
-- **`adapter/gateways/`**: ドメイン層が定義したインターフェース（ポート）を実装し、外部システム（DB、API、ハードウェア）との通信を抽象化する。
-    - `audio_recorder_gateway.py`: `domain.use_cases`が要求する録音インターフェースを実装。内部で`frameworks.hardware.AudioRecorder`を呼び出す。
-    - `speech_to_text_gateway.py`: `domain.use_cases`が要求する文字起こしインターフェースを実装。内部でGoogle Cloud Speech-to-Text APIを呼び出す。
-
-- **`adapter/controllers/`**: 外部からの入力（UI、CLI、ボタン押下など）を解釈し、対応するユースケースを呼び出す。
-    - `main_controller.py`: `ButtonHandler`からのコールバックを受け取り、`RecordAndTranscribe`ユースケースを実行するトリガーとなる。
-
-- **`adapter/presenters/`**: ユースケースの実行結果を、外部システム（UIなど）が表示しやすい形式に変換する。（今回は主にコンソール出力）
-
-### 4.3. Frameworks & Drivers Layer (フレームワーク＆ドライバ層)
-
-最も外側の層。フレームワーク、ライブラリ、ハードウェアなどの具体的な実装を配置する。
-
-- **`frameworks/hardware/`**: (既存の`src/hardware`をここに位置づける)
-    - `button_handler.py`: `RPi.GPIO`を使った物理ボタン操作の実装。
-    - `audio_recorder.py`: `sounddevice`を使ったマイク録音の実装。
+（中略）
 
 ## 5. 依存性のルール
 
 - **内側に向かって依存:** 外側の層は内側の層を知っているが、内側の層は外側の層を知らない。
-    - 例: `adapter`層は`domain`層を知っているが、`domain`層は`adapter`層を知らない。
 - **依存性逆転の法則:** `domain.use_cases`は具体的な実装（Gateway）に依存せず、インターフェース（抽象）に依存する。具体的な実装は`main.py`で注入（DI: Dependency Injection）する。
+
+## 6. クラス図
+
+```mermaid
+classDiagram
+    direction LR
+
+    subgraph FrameworksAndDrivers
+        class ButtonHandler
+        class AudioRecorder
+        class GoogleSpeechAPI
+    end
+
+    subgraph Adapter Layer
+        class MainController
+        class AudioRecorderGatewayImpl
+        class SpeechToTextGatewayImpl
+    end
+
+    subgraph Domain Layer
+        class RecordAndTranscribeUseCase
+        class AudioRecorderGateway {
+            <<interface>>
+        }
+        class SpeechToTextGateway {
+            <<interface>>
+        }
+        class AudioData
+        class Transcription
+    end
+
+    ButtonHandler --|> MainController : triggers
+    MainController ..> RecordAndTranscribeUseCase : uses
+    
+    RecordAndTranscribeUseCase ..> AudioRecorderGateway : uses
+    RecordAndTranscribeUseCase ..> SpeechToTextGateway : uses
+    RecordAndTranscribeUseCase ..> AudioData : creates
+    RecordAndTranscribeUseCase ..> Transcription : creates
+
+    AudioRecorderGatewayImpl --|> AudioRecorderGateway : implements
+    AudioRecorderGatewayImpl ..> AudioRecorder : uses
+
+    SpeechToTextGatewayImpl --|> SpeechToTextGateway : implements
+    SpeechToTextGatewayImpl ..> GoogleSpeechAPI : uses
+```
+
+## 7. シーケンス図（ボタン押下から文字起こしまで）
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ButtonHandler
+    participant MainController
+    participant RecordAndTranscribeUseCase
+    participant AudioRecorderGateway
+    participant SpeechToTextGateway
+
+    User->>ButtonHandler: ボタンを押す
+    ButtonHandler->>MainController: on_button_pressed() コールバック実行
+    MainController->>RecordAndTranscribeUseCase: execute()
+    activate RecordAndTranscribeUseCase
+    RecordAndTranscribeUseCase->>AudioRecorderGateway: record()
+    AudioRecorderGateway-->>RecordAndTranscribeUseCase: AudioData
+    RecordAndTranscribeUseCase->>SpeechToTextGateway: transcribe(AudioData)
+    SpeechToTextGateway-->>RecordAndTranscribeUseCase: Transcription
+    deactivate RecordAndTranscribeUseCase
+    RecordAndTranscribeUseCase-->>MainController: Transcription
+    MainController-->>User: 結果を表示 (or 次の処理へ)
+```

@@ -24,6 +24,18 @@
 
 ### 3.3. パブリックインターフェース
 
+```mermaid
+classDiagram
+    class AudioRecorder {
+        -samplerate: int
+        -channels: int
+        -recording: bool
+        +__init__(samplerate, channels)
+        +record(duration, output_filename, dummy_input_file)
+        -_create_dummy_file(duration, output_filename, input_filename)
+    }
+```
+
 | メソッド/プロパティ | 引数 | 戻り値 | 説明 |
 | :--- | :--- | :--- | :--- |
 | `__init__(self, samplerate, channels)` | `samplerate` (int): サンプリングレート(Hz)。<br>`channels` (int): チャンネル数(1:モノラル, 2:ステレオ)。 | `None` | コンストラクタ。録音の基本設定を初期化する。 |
