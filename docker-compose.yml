@@ -6,6 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: notigenie:dev
     # "./src"をコンテナ内の"/app"にマウントする
     # これにより、ローカルでのコード変更が即座にコンテナに反映される
     volumes:
@@ -16,3 +17,5 @@ services:
     # コンテナを起動し続けるための設定
     # tty: trueは、コンテナの標準入力を開き続けるために必要
     tty: true
+    environment:
+      - PYTHONIOENCODING=UTF-8
