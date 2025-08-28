@@ -3,3 +3,4 @@ google-generativeai
 google-cloud-speech
 gTTS
 notion-client
+RPi.GPIO
