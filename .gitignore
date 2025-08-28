@@ -207,6 +207,7 @@ google-credential.json
 # Audio files
 *.mp3
 *.wav
+!src/sample_data/test_audio.wav
 
 # Marimo
 marimo/_static/

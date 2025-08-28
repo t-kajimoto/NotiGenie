@@ -1,5 +1,5 @@
 
-from src.domain.use_cases.record_and_transcribe import RecordAndTranscribeUseCase
+from domain.use_cases.record_and_transcribe import RecordAndTranscribeUseCase
 
 class MainController:
     """アプリケーションのメインコントローラ"""

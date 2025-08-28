@@ -4,11 +4,11 @@ from dotenv import load_dotenv
 # .envファイルをロード
 load_dotenv()
 
-from src.adapter.controllers.main_controller import MainController
-from src.adapter.gateways.audio_recorder_gateway import AudioRecorderGatewayImpl
-from src.adapter.gateways.speech_to_text_gateway import SpeechToTextGatewayImpl
-from src.domain.use_cases.record_and_transcribe import RecordAndTranscribeUseCase
-from src.hardware.button_handler import ButtonHandler
+from adapter.controllers.main_controller import MainController
+from adapter.gateways.audio_recorder_gateway import AudioRecorderGatewayImpl
+from adapter.gateways.speech_to_text_gateway import SpeechToTextGatewayImpl
+from domain.use_cases.record_and_transcribe import RecordAndTranscribeUseCase
+from hardware.button_handler import ButtonHandler
 
 def main():
     """

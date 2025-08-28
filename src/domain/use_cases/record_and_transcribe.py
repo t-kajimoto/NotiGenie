@@ -1,7 +1,7 @@
 
 from abc import ABC, abstractmethod
-from src.domain.entities.audio import AudioData
-from src.domain.entities.transcription import Transcription
+from domain.entities.audio import AudioData
+from domain.entities.transcription import Transcription
 
 class AudioRecorderGateway(ABC):
     """録音デバイスの抽象インターフェース（ポート）"""
