@@ -8,7 +8,7 @@ WORKDIR /app
 # Copy the requirements file into the container at /app
 COPY requirements.txt .
 
-RUN apt-get update && apt-get install -y build-essential
+RUN apt-get update && apt-get install -y build-essential libportaudio2
 
 # Install any needed packages specified in requirements.txt
 # --no-cache-dir reduces image size
