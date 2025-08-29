@@ -6,3 +6,4 @@ notion-client
 RPi.GPIO
 sounddevice
 scipy
+pyyaml

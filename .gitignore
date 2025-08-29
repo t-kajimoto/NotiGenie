@@ -209,6 +209,9 @@ google-credential.json
 *.wav
 !src/sample_data/test_audio.wav
 
+# Configuration files
+src/config.yaml
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
