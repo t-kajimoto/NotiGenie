@@ -69,6 +69,7 @@
 
 - **`SyntaxError`:** `finally`ブロックの構文など、基本的な文法ミスに注意する。
 - **`AttributeError`:** `list_tools()`と`call_tool()`のように、同じライブラリでもメソッドによって戻り値のオブジェクト構造が違うことを常に意識し、思い込みで実装しない。
+- **絶対インポートの規約:** `src`ディレクトリをプロジェクトのソースルートと定めます。`docker-compose.yml`で`src`を`/app`にマウントしているため、`src`内のスクリプトからのモジュールインポートは、常に`src`をトップレベルパッケージと見なした絶対パス形式（例: `from adapter.controllers.main_controller import MainController`）で行うこと。`from src.adapter...`のような形式は、実行時エラーの原因となるため禁止とします。
 
 ### 7.5. Git関連
 
