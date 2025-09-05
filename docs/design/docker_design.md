@@ -39,7 +39,7 @@
 Pythonの依存ライブラリとそのバージョンを管理する。
 
 ```
-mcp-notion
+notion-client
 google-generativeai
 google-cloud-speech
 gTTS

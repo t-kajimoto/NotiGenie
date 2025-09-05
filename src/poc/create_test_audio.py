@@ -1,14 +1,18 @@
 
 from gtts import gTTS
 import os
+import sys
 
-# テキストを定義
-text = "こんにちは、これはテストです。"
+# 引数からテキストを取得
+if len(sys.argv) > 1:
+    text = sys.argv[1]
+else:
+    text = "こんにちは、これはテストです。"
 
-# 出力ファイルパスを定義
-output_path = "test_audio.mp3"
+# 出力ファイルパスを定義 (MP3形式)
+output_path = os.path.join(os.path.dirname(__file__), '..', 'sample_data', 'test_audio.mp3')
 
-print(f"'{text}' というテキストから音声ファイルを生成します...")
+print(f"'{text}' というテキストからMP3ファイルを生成します...")
 
 # gTTSを使って音声ファイルを生成
 try:

@@ -110,7 +110,9 @@ sequenceDiagram
 
 ## 6. 考慮事項
 
--   **インターフェースの導入:** `IIntentAndResponseGateway`と`INotionMCPGateway`というインターフェース（抽象基底クラス）を導入することで、依存性逆転の原則（DIP）を適用し、ユースケースが具象クラス（`GeminiGateway`, `NotionMCPGateway`）に依存しないようにする。
+-   **インターフェースの導入:** `IIntentAndResponseGateway`と`INotionClientGateway`というインターフェース（抽象基底クラス）を導入することで、依存性逆転の原則（DIP）を適用し、ユースケースが具象クラス（`GeminiGateway`, `NotionClientGateway`）に依存しないようにする。
     -   **補足:** `INotionMCPGateway`は「Notion」という固有名詞を含んでいますが、本アプリケーションの核となる目的が「Notionを操作すること」であるため、過剰な抽象化を避け、役割の明確さを優先する現実的な選択としています。
 -   **設定情報の注入:** `config.yaml`から読み込んだデータベースのマッピング情報は、DI（Dependency Injection）コンテナなどを通じて`NotionMCPGateway`に注入されるのが望ましい。
 -   **エラーハンドリング:** 各ゲートウェイでのAPIエラーや通信エラーは、例外として捕捉され、ユースケース層で適切に処理される必要がある。
+��。
+��され、ユースケース層で適切に処理される必要がある。

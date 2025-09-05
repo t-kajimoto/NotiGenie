@@ -1,4 +1,3 @@
-
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -6,7 +5,6 @@ import json
 import asyncio
 from mcp import ClientSession, StdioServerParameters
 import sys
-
 import yaml
 
 # .envファイルをロード
@@ -49,10 +47,13 @@ if not os.path.exists(PROMPT_FILE):
 with open(PROMPT_FILE, 'r', encoding='utf-8') as f:
     SYSTEM_INSTRUCTIONS_TEMPLATE = f.read()
 
-def generate_notion_command(user_utterance: str) -> str:
-    model = genai.GenerativeModel('gemini-2.0-flash')
+# --------------------------------------------------------------------------
+# 2. Gemini API呼び出し関数
+# --------------------------------------------------------------------------
+async def generate_notion_command(user_utterance: str) -> str:
+    """ユーザーの発話からNotion操作のJSONコマンドを生成する"""
+    model = genai.GenerativeModel('gemini-pro') # モデルを更新
     
-    # プロンプトを構築
     database_descriptions = ""
     for db_name, db_info in NOTION_DATABASE_MAPPING.items():
         database_descriptions += f"- {db_name}: {db_info['description']}\n"
@@ -60,39 +61,37 @@ def generate_notion_command(user_utterance: str) -> str:
     full_prompt = SYSTEM_INSTRUCTIONS_TEMPLATE.replace("{database_descriptions}", database_descriptions)
     full_prompt = full_prompt.replace("{user_utterance}", user_utterance)
 
-    print(f"Geminiにコマンド生成をリクエスト中...\nユーザー発話: {user_utterance}")
-    response = model.generate_content(full_prompt)
+    print(f"Geminiにコマンド生成をリクエスト中...")
+    response = await model.generate_content_async(full_prompt)
     
     # レスポンスからMarkdownのコードブロックを削除
     cleaned_json = response.text.strip().replace("```json", "").replace("```", "").strip()
     return cleaned_json
 
 async def generate_final_response(tool_result: str) -> str:
-    model = genai.GenerativeModel('gemini-2.0-flash')
-    prompt = f"Notionの操作結果は以下の通りです。この結果を元に、ユーザーへの応答メッセージを生成してください。\n\n{tool_result}"
-    response = model.generate_content(prompt)
+    """ツールの実行結果から最終的な応答メッセージを生成する"""
+    model = genai.GenerativeModel('gemini-pro') # モデルを更新
+    prompt = f"Notionの操作結果は以下の通りです。この結果を元に、ユーザーへの応答メッセージを簡潔に生成してください。\n\n# 操作結果\n{tool_result}\n\n# 応答メッセージ"
+    response = await model.generate_content_async(prompt)
     return response.text
 
 # --------------------------------------------------------------------------
 # 3. ツール実行関数
 # --------------------------------------------------------------------------
 async def execute_notion_tool(action: str, args: dict) -> str:
+    """NotionMCPツールを実行する"""
     server_params = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", "mcp_notion.server"],
+        command=[sys.executable, "-m", "mcp_notion.server"],
         env=os.environ,
     )
-    async with ClientSession(server_params) as (read, write):
-        session = ClientSession(read, write)
-        await session.initialize()
-
+    async with ClientSession(server_params) as session:
         # 論理名から実際のデータベースIDへのマッピング
         if "database_name" in args and args["database_name"] in NOTION_DATABASE_MAPPING:
             args["database_id"] = NOTION_DATABASE_MAPPING[args["database_name"]]['id']
-            del args["database_name"] # NotionMCPはdatabase_idを期待するため、論理名は削除
+            del args["database_name"]
         if "parent_name" in args and args["parent_name"] in NOTION_DATABASE_MAPPING:
             args["parent_id"] = NOTION_DATABASE_MAPPING[args["parent_name"]]['id']
-            del args["parent_name"] # NotionMCPはparent_idを期待するため、論理名は削除
+            del args["parent_name"]
 
         print(f"ツール実行: {action} with args: {args}")
         result = await session.call_tool(action, arguments=args)
@@ -117,7 +116,7 @@ async def main():
             break
         
         # 1. コマンド生成
-        command_json_str = generate_notion_command(user_input)
+        command_json_str = await generate_notion_command(user_input)
         print(f"\n--- Gemini生成コマンド ---\n{command_json_str}")
 
         try:
@@ -128,7 +127,7 @@ async def main():
             if action and action != "error":
                 # 2. ツール実行
                 tool_result = await execute_notion_tool(action, args)
-                print(f"\n--- ツール実行結果 ---\n{tool_result}")
+                print(f"\n--- ツール実行結果 ---{tool_result}")
 
                 # 3. 最終応答生成
                 final_response = await generate_final_response(tool_result)

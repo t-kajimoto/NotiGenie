@@ -1,4 +1,4 @@
-import time
+import asyncio
 import os
 import yaml
 from dotenv import load_dotenv
@@ -10,12 +10,12 @@ from adapter.controllers.main_controller import MainController
 from adapter.gateways.audio_recorder_gateway import AudioRecorderGatewayImpl
 from adapter.gateways.speech_to_text_gateway import SpeechToTextGatewayImpl
 from adapter.gateways.gemini_gateway import GeminiGateway
-from adapter.gateways.notion_mcp_gateway import NotionMCPGateway
+from adapter.gateways.notion_client_gateway import NotionClientGateway
 from domain.use_cases.record_and_transcribe import RecordAndTranscribeUseCase
 from domain.use_cases.interpret_and_execute import InterpretAndExecuteUseCase
 from hardware.button_handler import ButtonHandler
 
-def main():
+async def main():
     """
     アプリケーションのメインエントリポイント。
     依存関係の注入（DI）とアプリケーションの起動を行う。
@@ -34,12 +34,18 @@ def main():
 
         # プロンプトファイルを読み込む
         with open("prompts/notion_command_generator.md", 'r', encoding='utf-8') as f:
-            prompt_template = f.read()
+            command_prompt_template = f.read()
+        with open("prompts/final_response_generator.md", 'r', encoding='utf-8') as f:
+            response_prompt_template = f.read()
 
         # APIキーを読み込む
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         if not gemini_api_key:
             raise ValueError(".envファイルにGEMINI_API_KEYが設定されていません。")
+        
+        notion_api_key = os.getenv("NOTION_API_KEY")
+        if not notion_api_key:
+            raise ValueError(".envファイルにNOTION_API_KEYが設定されていません。")
 
         print("設定ファイルの読み込みが完了しました。")
 
@@ -58,8 +64,13 @@ def main():
         # Gateways
         audio_recorder_gateway = AudioRecorderGatewayImpl()
         speech_to_text_gateway = SpeechToTextGatewayImpl()
-        gemini_gateway = GeminiGateway(api_key=gemini_api_key, prompt_template=prompt_template, notion_database_mapping=notion_database_mapping)
-        notion_mcp_gateway = NotionMCPGateway(notion_database_mapping=notion_database_mapping)
+        gemini_gateway = GeminiGateway(
+            api_key=gemini_api_key, 
+            command_prompt_template=command_prompt_template, 
+            response_prompt_template=response_prompt_template, 
+            notion_database_mapping=notion_database_mapping
+        )
+        notion_client_gateway = NotionClientGateway(notion_api_key=notion_api_key, notion_database_mapping=notion_database_mapping)
 
         # Use Cases
         record_and_transcribe_use_case = RecordAndTranscribeUseCase(
@@ -68,7 +79,7 @@ def main():
         )
         interpret_and_execute_use_case = InterpretAndExecuteUseCase(
             intent_and_response_gateway=gemini_gateway,
-            notion_mcp_gateway=notion_mcp_gateway
+            notion_client_gateway=notion_client_gateway
         )
 
         # Controller
@@ -94,15 +105,17 @@ def main():
     print("\nアプリケーションが起動しました。ボタンの押下を待っています...")
     print("（PCでのテストの場合、コンソールでEnterキーを押してください）")
     try:
-        # ボタンのイベントループはButtonHandler内で実行されるため、
-        # main.pyはここで待機するだけで良い。
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
+        # アプリケーションが終了しないように待機
+        await asyncio.Event().wait()
+    except (KeyboardInterrupt, asyncio.CancelledError):
         print("\nアプリケーションを終了します。")
     finally:
         button_handler.cleanup()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+

@@ -1,4 +1,3 @@
-mcp-notion
 google-generativeai
 google-cloud-speech
 gTTS
@@ -7,3 +6,5 @@ RPi.GPIO
 sounddevice
 scipy
 pyyaml
+pydub
+python-dotenv
