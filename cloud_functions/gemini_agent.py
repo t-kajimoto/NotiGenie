@@ -3,30 +3,16 @@ import google.generativeai as genai
 import json
 
 class GeminiAgent:
-    def __init__(self):
+    def __init__(self, command_prompt_template: str, response_prompt_template: str, notion_database_mapping: dict):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-1.5-flash')
 
-        # TODO: Load prompts and mapping from config or env
-        self.command_prompt_template = """
-        You are a helpful assistant. Parse the user's intent and extract parameters for Notion.
-        User said: {user_utterance}
-        Current date: {current_date}
-
-        Available Databases:
-        {database_descriptions}
-
-        Output JSON only.
-        """
-        self.response_prompt_template = """
-        Generate a response for the user based on the tool execution result.
-        User said: {user_utterance}
-        Tool result: {tool_result}
-        """
-        self.notion_database_mapping = {}
+        self.command_prompt_template = command_prompt_template
+        self.response_prompt_template = response_prompt_template
+        self.notion_database_mapping = notion_database_mapping
 
     async def generate_notion_command(self, user_utterance: str, current_date: str) -> dict:
         database_descriptions = ""
@@ -39,11 +25,12 @@ class GeminiAgent:
 
         try:
             response = await self.model.generate_content_async(full_prompt)
+            # 念のためコードブロック記法などを除去
             cleaned_json = response.text.strip().replace("```json", "").replace("```", "").strip()
             return json.loads(cleaned_json)
         except json.JSONDecodeError as e:
             # response.text might not exist if generation failed completely, but here we assume it returned something unparseable
-            error_message = f"JSON parse error: {e}"
+            error_message = f"JSON parse error: {e}. Raw response: {response.text}"
             return {"action": "error", "message": error_message}
         except Exception as e:
             error_message = f"Gemini API error: {e}"

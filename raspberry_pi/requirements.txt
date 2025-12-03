@@ -1,5 +1,8 @@
-picovoice
+pvporcupine
+pvrecorder
 google-cloud-speech
 requests
 sounddevice
 numpy
+python-dotenv
+pyaudio
