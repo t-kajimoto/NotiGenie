@@ -23,9 +23,9 @@ sequenceDiagram
     participant NotionClientGW as NotionClientGateway
     participant NotionAPI as Notion API
 
-    %% 1. 録音開始から音声テキスト化まで %%
-    User->>NotiGenie_HW: 録音開始 (ボタン押下)
-    NotiGenie_HW->>NotiGenie_App: 録音開始を通知
+    %% 1. ウェイクワード検知から音声テキスト化まで %%
+    User->>NotiGenie_HW: ウェイクワード発話 ("Porcupine")
+    NotiGenie_HW->>NotiGenie_App: ウェイクワード検知を通知
     NotiGenie_App->>NotiGenie_HW: 音声録音を指示
     activate NotiGenie_HW
     NotiGenie_HW-->>User: 録音開始をフィードバック (LED点灯など)
@@ -80,7 +80,7 @@ sequenceDiagram
 
 ### 3.2. 各ステップの詳細
 
-1.  **音声入力と録音:** ユーザーがボタンを押し、NotiGenieに録音開始を指示します。
+1.  **ウェイクワード検知:** ユーザーがウェイクワード（例：「Porcupine」）を発話し、NotiGenieに録音開始を指示します。
 2.  **音声認識:** アプリケーションが音声をテキストに変換する。
 3.  **プロンプトの準備:** アプリケーションがプロンプトテンプレートと`config.yaml`の情報を結合する。
 4.  **コマンド生成 (Gemini):** Geminiがユーザーの指示を解釈し、Notion操作のためのJSONコマンドを生成する。
