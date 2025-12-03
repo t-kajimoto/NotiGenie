@@ -1,0 +1,36 @@
+name: Deploy Cloud Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloud_functions/**'
+      - '.github/workflows/deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Deploy to Cloud Functions
+        run: |
+          cd cloud_functions
+          gcloud functions deploy notigenie-backend \
+            --gen2 \
+            --runtime=python311 \
+            --region=asia-northeast1 \
+            --source=. \
+            --entry-point=main \
+            --trigger-http \
+            --allow-unauthenticated \
+            --set-env-vars LINE_CHANNEL_ACCESS_TOKEN=${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }},LINE_CHANNEL_SECRET=${{ secrets.LINE_CHANNEL_SECRET }},NOTION_API_KEY=${{ secrets.NOTION_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}

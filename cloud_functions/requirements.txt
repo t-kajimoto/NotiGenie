@@ -1,0 +1,7 @@
+functions-framework==3.*
+flask==3.*
+line-bot-sdk==3.*
+google-cloud-aiplatform
+google-generativeai
+notion-client
+requests

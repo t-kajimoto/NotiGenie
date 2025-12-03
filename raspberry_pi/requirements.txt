@@ -1,0 +1,5 @@
+picovoice
+google-cloud-speech
+requests
+sounddevice
+numpy
