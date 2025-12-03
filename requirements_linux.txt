@@ -1,0 +1,10 @@
+google-generativeai
+google-cloud-speech
+notion-client
+scipy
+pyyaml
+pydub
+python-dotenv
+pytest
+pytest-asyncio
+pytest-mock
