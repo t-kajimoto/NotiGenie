@@ -13,7 +13,7 @@ from adapter.gateways.gemini_gateway import GeminiGateway
 from adapter.gateways.notion_client_gateway import NotionClientGateway
 from domain.use_cases.record_and_transcribe import RecordAndTranscribeUseCase
 from domain.use_cases.interpret_and_execute import InterpretAndExecuteUseCase
-from hardware.button_handler import ButtonHandler
+from hardware.wakeword_handler import WakeWordHandler
 
 async def main():
     """
@@ -46,6 +46,10 @@ async def main():
         notion_api_key = os.getenv("NOTION_API_KEY")
         if not notion_api_key:
             raise ValueError(".envファイルにNOTION_API_KEYが設定されていません。")
+
+        picovoice_access_key = os.getenv("PICOVOICE_ACCESS_KEY")
+        if not picovoice_access_key:
+            raise ValueError(".envファイルにPICOVOICE_ACCESS_KEYが設定されていません。")
 
         print("設定ファイルの読み込みが完了しました。")
 
@@ -89,10 +93,11 @@ async def main():
         )
 
         # Hardware
-        button_handler = ButtonHandler()
+        # WakeWordHandlerの初期化（デフォルトのキーワード 'porcupine' を使用）
+        wakeword_handler = WakeWordHandler(access_key=picovoice_access_key)
 
-        # ボタン押下のコールバックとしてコントローラのアクションを登録
-        button_handler.set_button_press_callback(main_controller.on_button_pressed)
+        # ウェイクワード検知のコールバックとしてコントローラのアクションを登録
+        wakeword_handler.start_listening(main_controller.on_button_pressed)
         print("依存関係の構築が完了しました。")
 
     except Exception as e:
@@ -102,15 +107,15 @@ async def main():
     # ------------------------------------------
     # 3. アプリケーションのメインループ
     # ------------------------------------------
-    print("\nアプリケーションが起動しました。ボタンの押下を待っています...")
-    print("（PCでのテストの場合、コンソールでEnterキーを押してください）")
+    print("\nアプリケーションが起動しました。ウェイクワード（'Porcupine'）を待っています...")
     try:
         # アプリケーションが終了しないように待機
         await asyncio.Event().wait()
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("\nアプリケーションを終了します。")
     finally:
-        button_handler.cleanup()
+        if 'wakeword_handler' in locals():
+            wakeword_handler.cleanup()
 
 
 if __name__ == "__main__":
