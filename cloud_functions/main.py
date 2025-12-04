@@ -86,11 +86,13 @@ except Exception as e:
 
 
 @functions_framework.http
-def main(request: Request):
+async def main(request: Request):
     """
     HTTP Cloud Function Entry Point.
     Frameworks & Drivers層に位置します。
     ここから適切なコントローラーにリクエストを振り分けます。
+
+    Updated to be async to prevent 'Event loop is closed' errors with Gemini SDK.
 
     Args:
         request (flask.Request): The request object.
@@ -109,7 +111,8 @@ def main(request: Request):
         signature = request.headers["X-Line-Signature"]
         body = request.get_data(as_text=True)
         try:
-            line_controller.handle_request(body, signature)
+            # await handles the async execution without creating a new loop
+            await line_controller.handle_request(body, signature)
             return "OK"
         except InvalidSignatureError:
             abort(400)
@@ -124,18 +127,12 @@ def main(request: Request):
         user_utterance = request_json["text"]
         current_date = request_json.get("date", "")
 
-        # 非同期ユースケースを実行
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
-            response_text = loop.run_until_complete(
-                process_message_use_case.execute(user_utterance, current_date)
-            )
+            # Direct await of the use case, utilizing the existing loop
+            response_text = await process_message_use_case.execute(user_utterance, current_date)
             return json.dumps({"response": response_text}, ensure_ascii=False)
         except Exception as e:
             print(f"Process Error: {e}")
             return json.dumps({"error": str(e)}), 500
-        finally:
-            loop.close()
 
     return "Invalid Request", 400
