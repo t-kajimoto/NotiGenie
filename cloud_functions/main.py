@@ -5,9 +5,19 @@ import json
 import yaml
 import asyncio
 import traceback
+import logging
+import sys
 from typing import Tuple
 from asgiref.sync import async_to_sync
 from linebot.v3.exceptions import InvalidSignatureError
+
+# Configure global logging to stderr for Cloud Functions
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+logger = logging.getLogger(__name__)
 
 # Clean Architecture Components
 # coreパッケージから必要なコンポーネントをインポートします
@@ -34,7 +44,7 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
         with open(schemas_path, 'r', encoding='utf-8') as f:
             schemas = yaml.safe_load(f)
     else:
-        print(f"Warning: {schemas_path} not found. Using empty config.")
+        logger.warning(f"{schemas_path} not found. Using empty config.")
         schemas = {}
 
     # Load prompts
@@ -50,7 +60,7 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
             with open(path, 'r', encoding='utf-8') as f:
                 prompts[key] = f.read()
         else:
-            print(f"Warning: {path} not found.")
+            logger.warning(f"{path} not found.")
             prompts[key] = ""
 
     return schemas, prompts
@@ -81,8 +91,8 @@ try:
     line_controller = LineController(use_case=process_message_use_case)
 
 except Exception as e:
-    print(f"Initialization Error: {e}")
-    traceback.print_exc()
+    logger.error(f"Initialization Error: {e}")
+    logger.error(traceback.format_exc())
     # 初期化失敗時はNoneにしておき、リクエスト時にエラーを返す
     process_message_use_case = None
     line_controller = None
@@ -98,7 +108,7 @@ async def main_logic(request: Request):
     # 1. LINE Webhook Request Handling
     if "X-Line-Signature" in request.headers:
         if not line_controller:
-            print("Request received but LineController is not configured.")
+            logger.error("Request received but LineController is not configured.")
             return "LINE Handler not configured", 500
 
         signature = request.headers["X-Line-Signature"]
@@ -107,10 +117,11 @@ async def main_logic(request: Request):
             await line_controller.handle_request(body, signature)
             return "OK"
         except InvalidSignatureError:
+            logger.warning("Invalid Signature in LINE Webhook")
             abort(400)
         except Exception as e:
-            print(f"LINE Webhook Error: {e}")
-            traceback.print_exc()
+            logger.error(f"LINE Webhook Error: {e}")
+            logger.error(traceback.format_exc())
             return f"Error: {e}", 500
 
     # 2. Raspberry Pi / API Request Handling
@@ -118,13 +129,14 @@ async def main_logic(request: Request):
     if request_json and "text" in request_json:
         user_utterance = request_json["text"]
         current_date = request_json.get("date", "")
+        logger.info(f"Received API request: {user_utterance}")
 
         try:
             response_text = await process_message_use_case.execute(user_utterance, current_date)
             return json.dumps({"response": response_text}, ensure_ascii=False)
         except Exception as e:
-            print(f"Process Error: {e}")
-            traceback.print_exc()
+            logger.error(f"Process Error: {e}")
+            logger.error(traceback.format_exc())
             return json.dumps({"error": str(e)}), 500
 
     return "Invalid Request", 400
