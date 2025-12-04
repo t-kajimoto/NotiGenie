@@ -19,7 +19,7 @@
 
 | 変数名 | 説明 | 備考 |
 | :--- | :--- | :--- |
-| `GCP_SA_KEY` | Google Cloud Service Account のJSONキー | Cloud Functions管理者権限を持つサービスアカウントのキー |
+| `GCP_SA_KEY` | Google Cloud Service Account のJSONキー | Cloud FunctionsおよびCloud Run管理者権限を持つサービスアカウントのキー |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API アクセストークン | LINE Developersコンソールから取得 |
 | `LINE_CHANNEL_SECRET` | LINE Messaging API チャネルシークレット | LINE Developersコンソールから取得 |
 | `GEMINI_API_KEY` | Google Gemini API キー | Google AI Studioから取得 |
@@ -30,7 +30,10 @@
 1. **GCPプロジェクトの設定**:
    - Google Cloud Projectを作成・選択します。
    - Cloud Functions API, Cloud Build API, Artifact Registry API を有効にします。
-   - サービスアカウントを作成し、`Cloud Functions Developer` および `Service Account User` のロールを付与します。
+   - サービスアカウントを作成し、以下のロールを付与します。
+     - `Cloud Functions Developer` (`roles/cloudfunctions.developer`)
+     - `Service Account User` (`roles/iam.serviceAccountUser`)
+     - `Cloud Run Admin` (`roles/run.admin`) ※Gen 2 で `--allow-unauthenticated` を使用するために必要
    - サービスアカウントのJSONキーをダウンロードし、GitHub Secretsの `GCP_SA_KEY` に登録します。
 
 2. **その他のSecrets登録**:
