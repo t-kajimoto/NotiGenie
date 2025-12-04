@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import traceback
+import uuid
 from typing import Dict, Any, Union, Optional, List
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
@@ -66,7 +67,9 @@ class NotionAdapter(INotionRepository):
 
         # マッピングに名前があればそのIDを返す
         if database_name in self.notion_database_mapping:
-            return self.notion_database_mapping[database_name].get("id")
+            val = self.notion_database_mapping[database_name].get("id")
+            if val:
+                return str(val).strip()
 
         return None
 
@@ -86,7 +89,16 @@ class NotionAdapter(INotionRepository):
                 if not database_id:
                      return json.dumps({"error": f"Database '{database_name}' not found in configuration."})
 
+            # Validate UUID format if database_id is present
             if database_id:
+                try:
+                    # Normalize UUID format (e.g. add hyphens if missing) to ensure valid URL
+                    database_id = str(uuid.UUID(database_id))
+                except ValueError:
+                    msg = f"Invalid Database ID format: {database_id}"
+                    logger.error(msg)
+                    return json.dumps({"error": msg})
+
                 # 特定のDB内を検索 (databases.query)
                 payload = {}
                 if query:
@@ -107,6 +119,7 @@ class NotionAdapter(INotionRepository):
                     }
 
                 # 2.7.0 workaround
+                # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
                 response = self.client.request(
                     path=f"databases/{database_id}/query",
                     method="POST",
@@ -175,6 +188,12 @@ class NotionAdapter(INotionRepository):
         database_id = self._resolve_database_id(database_name)
         if not database_id:
             return json.dumps({"error": f"Database '{database_name}' not found."})
+
+        # Validate UUID
+        try:
+             database_id = str(uuid.UUID(database_id))
+        except ValueError:
+            return json.dumps({"error": f"Invalid Database ID for {database_name}"})
 
         if properties is None:
             properties = {}
