@@ -1,0 +1,41 @@
+name: Raspberry Pi CI
+
+on:
+  pull_request:
+    paths:
+      - 'raspberry_pi/**'
+      - 'tests/**'
+      - '.github/workflows/raspberry_pi_ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y portaudio19-dev
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r raspberry_pi/requirements.txt
+          pip install pytest pytest-asyncio pytest-mock flake8
+
+      - name: Lint with flake8
+        run: |
+          flake8 raspberry_pi --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 raspberry_pi --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run tests
+        run: |
+          # Enable the wake word engine test
+          mv tests/test_wake_word_engine.py.disabled tests/test_wake_word_engine.py
+          pytest tests/test_wake_word_engine.py
