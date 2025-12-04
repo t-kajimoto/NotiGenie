@@ -34,7 +34,7 @@ class WakeWordEngine:
             print(f"Porcupine initialized. Keywords: {self.keywords if self.keywords else 'Default'}")
 
         except Exception as e:
-            print(f"WakeWordHandler初期化エラー: {e}")
+            print(f"WakeWordEngine初期化エラー: {e}")
             raise e
 
     def start_listening(self, callback):
@@ -101,4 +101,4 @@ class WakeWordEngine:
         if hasattr(self, 'recorder') and self.recorder is not None:
             self.recorder.delete()
 
-        print("WakeWordHandler cleanup complete.")
+        print("WakeWordEngine cleanup complete.")

@@ -1,8 +1,11 @@
 from linebot.v3 import WebhookHandler
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi
 import os
 
 class LineHandler:
+    """
+    LINE Messaging API Webhook Handler.
+    """
     def __init__(self):
         self.channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
         self.channel_secret = os.environ.get("LINE_CHANNEL_SECRET")
@@ -16,8 +19,11 @@ class LineHandler:
             self.handler = None
 
     def handle_request(self, body, signature):
+        """
+        Validates the signature and handles the webhook event.
+        """
         if not self.handler:
             raise ValueError("LINE credentials not set")
         self.handler.handle(body, signature)
 
-    # TODO: Add event handlers (e.g. MessageEvent)
+    # TODO: Add event handlers (e.g. MessageEvent) in Phase 2

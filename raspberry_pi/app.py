@@ -14,9 +14,16 @@ PICOVOICE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
 CLOUD_FUNCTIONS_URL = os.getenv("CLOUD_FUNCTIONS_URL")
 
 def main():
+    """
+    メインアプリケーションループ。
+    ウェイクワードを検知 -> 音声録音 -> STT -> Cloud Functions -> TTS
+    """
     if not PICOVOICE_ACCESS_KEY:
         print("Error: PICOVOICE_ACCESS_KEY is not set.")
         return
+
+    if not CLOUD_FUNCTIONS_URL:
+        print("Warning: CLOUD_FUNCTIONS_URL is not set. Requests will fail.")
 
     # Initialize components
     wake_word_engine = WakeWordEngine(access_key=PICOVOICE_ACCESS_KEY)

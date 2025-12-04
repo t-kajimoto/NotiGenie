@@ -3,13 +3,12 @@ import json
 import os
 
 class NotionHandler:
-    def __init__(self):
+    def __init__(self, notion_database_mapping: dict):
         self.notion_api_key = os.environ.get("NOTION_API_KEY")
         if not self.notion_api_key:
             raise ValueError("NOTION_API_KEY environment variable is not set")
         self.notion = Client(auth=self.notion_api_key)
-        # TODO: Load database mapping from config or env
-        self.notion_database_mapping = {}
+        self.notion_database_mapping = notion_database_mapping
 
     def execute_tool(self, action: str, args: dict) -> str:
         # 論理名から実際のデータベースIDへのマッピング
