@@ -95,6 +95,12 @@ class NotionAdapter(INotionRepository):
         database_name = args.get("database_name")
         database_id = args.get("database_id")
 
+        # Geminiが database_id にデータベース名を入れてくるケースがあるため、
+        # database_id が mapping にある名前なら ID に変換する
+        if database_id and database_id in self.notion_database_mapping:
+            logger.warning(f"database_id '{database_id}' seems to be a database name. Resolving to ID.")
+            database_id = self.notion_database_mapping[database_id].get("id")
+
         # IDが直接指定されていない場合、名前から解決
         if not database_id and database_name:
             database_id = self._resolve_database_id(database_name)
@@ -142,6 +148,12 @@ class NotionAdapter(INotionRepository):
     def _create_page(self, args: Dict[str, Any]) -> Any:
         database_name = args.get("database_name")
         database_id = args.get("database_id")
+
+        # Geminiが database_id にデータベース名を入れてくるケースがあるため、
+        # database_id が mapping にある名前なら ID に変換する
+        if database_id and database_id in self.notion_database_mapping:
+            logger.warning(f"database_id '{database_id}' seems to be a database name. Resolving to ID.")
+            database_id = self.notion_database_mapping[database_id].get("id")
 
         if not database_id and database_name:
             database_id = self._resolve_database_id(database_name)
