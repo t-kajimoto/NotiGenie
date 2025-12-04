@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 import json
 import cloud_functions.main as cf_main
+from linebot.v3.exceptions import InvalidSignatureError
+from werkzeug.exceptions import BadRequest
 
 class TestCloudFunctionMain:
 
@@ -26,6 +28,19 @@ class TestCloudFunctionMain:
 
         assert resp == "OK"
         self.mock_line_controller.handle_request.assert_called_with("body", "sig")
+
+    def test_line_webhook_invalid_signature(self):
+        # Mock Request
+        req = MagicMock()
+        req.headers = {"X-Line-Signature": "invalid_sig"}
+        req.get_data.return_value = "body"
+
+        # Mock controller to raise InvalidSignatureError
+        self.mock_line_controller.handle_request.side_effect = InvalidSignatureError("Invalid signature")
+
+        # Execute and Assert
+        with pytest.raises(BadRequest):
+            cf_main.main(req)
 
     def test_rpi_request_success(self):
         # Setup Async Mocks
