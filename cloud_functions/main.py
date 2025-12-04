@@ -4,7 +4,9 @@ import os
 import json
 import yaml
 import asyncio
+import traceback
 from typing import Tuple
+from asgiref.sync import async_to_sync
 from linebot.v3.exceptions import InvalidSignatureError
 
 # Clean Architecture Components
@@ -80,59 +82,58 @@ try:
 
 except Exception as e:
     print(f"Initialization Error: {e}")
+    traceback.print_exc()
     # 初期化失敗時はNoneにしておき、リクエスト時にエラーを返す
     process_message_use_case = None
     line_controller = None
 
-
-@functions_framework.http
-async def main(request: Request):
+async def main_logic(request: Request):
     """
-    HTTP Cloud Function Entry Point.
-    Frameworks & Drivers層に位置します。
-    ここから適切なコントローラーにリクエストを振り分けます。
-
-    Updated to be async to prevent 'Event loop is closed' errors with Gemini SDK.
-
-    Args:
-        request (flask.Request): The request object.
-    Returns:
-        The response text or tuple.
+    Async logic for the Cloud Function.
+    This function contains the core logic previously in 'main'.
     """
     if not process_message_use_case:
-        return "Server Internal Configuration Error: Initialization failed", 500
+        return "Server Internal Configuration Error: Initialization failed. Please check the logs for details.", 500
 
     # 1. LINE Webhook Request Handling
-    # ヘッダーにLINE特有の署名がある場合はLINEコントローラーに任せます
     if "X-Line-Signature" in request.headers:
         if not line_controller:
+            print("Request received but LineController is not configured.")
             return "LINE Handler not configured", 500
 
         signature = request.headers["X-Line-Signature"]
         body = request.get_data(as_text=True)
         try:
-            # await handles the async execution without creating a new loop
             await line_controller.handle_request(body, signature)
             return "OK"
         except InvalidSignatureError:
             abort(400)
         except Exception as e:
             print(f"LINE Webhook Error: {e}")
+            traceback.print_exc()
             return f"Error: {e}", 500
 
     # 2. Raspberry Pi / API Request Handling
-    # 独自のJSON APIへのリクエストとして処理します
     request_json = request.get_json(silent=True)
     if request_json and "text" in request_json:
         user_utterance = request_json["text"]
         current_date = request_json.get("date", "")
 
         try:
-            # Direct await of the use case, utilizing the existing loop
             response_text = await process_message_use_case.execute(user_utterance, current_date)
             return json.dumps({"response": response_text}, ensure_ascii=False)
         except Exception as e:
             print(f"Process Error: {e}")
+            traceback.print_exc()
             return json.dumps({"error": str(e)}), 500
 
     return "Invalid Request", 400
+
+@functions_framework.http
+def main(request: Request):
+    """
+    HTTP Cloud Function Entry Point.
+    Wraps the async logic in a synchronous call to ensure compatibility with
+    Functions Framework and Flask's request dispatching in the current environment.
+    """
+    return async_to_sync(main_logic)(request)

@@ -28,7 +28,7 @@ class TestCloudFunctionMain:
         req.get_data.return_value = "body"
 
         # Execute
-        resp = await cf_main.main(req)
+        resp = await cf_main.main_logic(req)
 
         assert resp == "OK"
         self.mock_line_controller.handle_request.assert_awaited_with("body", "sig")
@@ -45,7 +45,7 @@ class TestCloudFunctionMain:
 
         # Execute and Assert
         with pytest.raises(BadRequest):
-            await cf_main.main(req)
+            await cf_main.main_logic(req)
 
     @pytest.mark.asyncio
     async def test_rpi_request_success(self):
@@ -59,7 +59,7 @@ class TestCloudFunctionMain:
         req.get_data.return_value = None
 
         # Execute
-        resp = await cf_main.main(req)
+        resp = await cf_main.main_logic(req)
 
         # Verify
         resp_json = json.loads(resp)
@@ -78,7 +78,7 @@ class TestCloudFunctionMain:
         req.get_json.return_value = {"text": "hello"}
 
         # Execute
-        resp = await cf_main.main(req) # main returns (json, 500) on error
+        resp = await cf_main.main_logic(req) # main returns (json, 500) on error
 
         assert isinstance(resp, tuple)
         assert resp[1] == 500
@@ -90,7 +90,7 @@ class TestCloudFunctionMain:
         mocker.patch.object(cf_main, "process_message_use_case", None)
 
         req = MagicMock()
-        resp = await cf_main.main(req)
+        resp = await cf_main.main_logic(req)
         # main returns "Server Internal Configuration Error...", 500
         assert isinstance(resp, tuple)
         assert resp[1] == 500
