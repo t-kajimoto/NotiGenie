@@ -28,9 +28,8 @@ def test_execute_tool_query_database(notion_adapter, mock_notion_client):
     result_json = notion_adapter.execute_tool("query_database", args)
 
     # ID変換が行われているか確認
-    # NotionAdapter実装に合わせて修正: filter_param は **kwargs として渡される
-    # filter_json={"filter": {}} の場合、kwargs={"filter": {}} となる
-    mock_notion_client.databases.query.assert_called_with(database_id="db-123", filter={})
+    # NotionAdapter実装に合わせて修正: filterが空の場合はkwargsから削除される
+    mock_notion_client.databases.query.assert_called_with(database_id="db-123")
     assert "results" in json.loads(result_json)
 
 def test_execute_tool_create_page(notion_adapter, mock_notion_client):

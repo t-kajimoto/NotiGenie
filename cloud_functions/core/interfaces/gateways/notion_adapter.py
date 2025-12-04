@@ -1,8 +1,19 @@
 import os
 import json
+import logging
+import sys
+import traceback
 from typing import Dict, Any, Union, Optional
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
+
+# ロガーの設定: Google Cloud Functionsでログを確認できるようにstderrに出力
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
 
 class NotionAdapter(INotionRepository):
     """
@@ -22,11 +33,12 @@ class NotionAdapter(INotionRepository):
 
         if self.api_key and self.api_key != "dummy":
             self.client = Client(auth=self.api_key)
+            logger.info("Notion Client initialized successfully.")
         else:
             # テスト時やAPIキー未設定時
             self.client = None
             if self.api_key != "dummy":
-                print("Warning: NOTION_API_KEY not set.")
+                logger.warning("Warning: NOTION_API_KEY not set.")
 
     def execute_tool(self, action: str, args: Dict[str, Any]) -> Any:
         """
@@ -35,8 +47,13 @@ class NotionAdapter(INotionRepository):
         現在の実装では、互換性のためにJSON文字列を返すことを推奨しますが、
         将来的に辞書への移行を見越して実装します。
         """
+        logger.info(f"Executing Notion tool: action={action}")
+        logger.debug(f"Args: {args}")
+
         if not self.client:
-            return json.dumps({"error": "Notion Client not initialized (No API Key)"})
+            msg = "Notion Client not initialized (No API Key)"
+            logger.error(msg)
+            return json.dumps({"error": msg})
 
         try:
             if action == "query_database":
@@ -48,16 +65,24 @@ class NotionAdapter(INotionRepository):
             elif action == "append_block_children": # mainブランチの命名に対応
                 result = self._append_block(args)
             else:
-                return json.dumps({"error": f"未知のアクション: {action}"})
+                msg = f"未知のアクション: {action}"
+                logger.error(msg)
+                return json.dumps({"error": msg})
 
             # 結果がすでに文字列（JSON）ならそのまま、オブジェクトならJSON化
             if isinstance(result, str):
                 return result
+            # 成功時もデータサイズによってはログを出すと便利だが、個人情報含むため注意。
+            # ここでは件数などを出す程度にするか、あるいはデバッグ時のみ詳細を出す。
             return json.dumps(result)
 
         except APIResponseError as e:
+            logger.error(f"Notion API Error: {e.code} - {str(e)}")
+            logger.error(traceback.format_exc())
             return json.dumps({"error": f"Notion APIエラー: {str(e)}", "code": e.code})
         except Exception as e:
+            logger.error(f"Unexpected Error in NotionAdapter: {str(e)}")
+            logger.error(traceback.format_exc())
             return json.dumps({"error": f"予期せぬエラー: {str(e)}"})
 
     def _resolve_database_id(self, database_name: str) -> Optional[str]:
@@ -98,6 +123,12 @@ class NotionAdapter(INotionRepository):
         else:
             query_kwargs = {"filter": filter_param}
 
+        # 空のフィルタはAPIエラーになる場合があるため、空なら削除する
+        if "filter" in query_kwargs and not query_kwargs["filter"]:
+            del query_kwargs["filter"]
+
+        logger.info(f"Querying database_id={database_id} with params={query_kwargs}")
+
         response = self.client.databases.query(database_id=database_id, **query_kwargs)
         return response
 
@@ -128,6 +159,8 @@ class NotionAdapter(INotionRepository):
             except:
                 pass
 
+        logger.info(f"Creating page in database_id={database_id}")
+
         response = self.client.pages.create(
             parent=parent,
             properties=properties
@@ -148,6 +181,8 @@ class NotionAdapter(INotionRepository):
                 children = json.loads(children)
             except:
                 pass
+
+        logger.info(f"Appending block to block_id={block_id}")
 
         response = self.client.blocks.children.append(
             block_id=block_id,
