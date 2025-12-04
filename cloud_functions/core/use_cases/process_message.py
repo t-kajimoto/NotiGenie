@@ -66,6 +66,6 @@ class ProcessMessageUseCase:
 
         except Exception as e:
             # 予期せぬエラーが発生した場合のフォールバック
-            # ログを出力し、ユーザーにはエラーであることを伝えます。
+            # ログを出力し、エラーを上位レイヤーに伝播させます。
             print(f"Error in ProcessMessageUseCase: {e}")
-            return f"申し訳ありません。処理中にエラーが発生しました: {str(e)}"
+            raise

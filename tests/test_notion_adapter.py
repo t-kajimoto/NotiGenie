@@ -58,7 +58,7 @@ def test_execute_tool_api_error(notion_adapter, mock_notion_client):
     mock_notion_client.databases.query.side_effect = error
 
     args = {"database_id": "db-123", "filter_json": {}}
-    result_json = notion_adapter.execute_tool("query_database", args)
 
-    result = json.loads(result_json)
-    assert "Notion APIエラー" in result["error"]
+    # 変更後: 例外が送出されることを確認
+    with pytest.raises(APIResponseError):
+        notion_adapter.execute_tool("query_database", args)
