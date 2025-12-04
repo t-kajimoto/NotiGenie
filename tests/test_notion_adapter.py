@@ -21,15 +21,20 @@ def notion_adapter(mock_notion_client, monkeypatch):
 
 def test_execute_tool_query_database(notion_adapter, mock_notion_client):
     # 正常系: query_database
-    mock_notion_client.databases.query.return_value = {"results": []}
+    # 修正対応: client.request をモックする
+    mock_notion_client.request.return_value = {"results": []}
 
     args = {"database_name": "TestDB", "filter_json": {"filter": {}}}
     # 同期メソッド
     result_json = notion_adapter.execute_tool("query_database", args)
 
     # ID変換が行われているか確認
-    # NotionAdapter実装に合わせて修正: filterが空の場合はkwargsから削除される
-    mock_notion_client.databases.query.assert_called_with(database_id="db-123")
+    # NotionAdapter実装に合わせて修正: client.requestが呼ばれることを確認
+    mock_notion_client.request.assert_called_with(
+        path="databases/db-123/query",
+        method="POST",
+        body={}
+    )
     assert "results" in json.loads(result_json)
 
 def test_execute_tool_create_page(notion_adapter, mock_notion_client):
@@ -55,7 +60,8 @@ def test_execute_tool_api_error(notion_adapter, mock_notion_client):
     # 異常系: Notion APIエラー
     error = APIResponseError(response=MagicMock(), message="API Error", code=400)
     error.body = "Bad Request"
-    mock_notion_client.databases.query.side_effect = error
+    # mock_notion_client.databases.query.side_effect = error
+    mock_notion_client.request.side_effect = error
 
     args = {"database_id": "db-123", "filter_json": {}}
 
