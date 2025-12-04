@@ -37,6 +37,21 @@ def test_execute_tool_query_database(notion_adapter, mock_notion_client):
     )
     assert "results" in json.loads(result_json)
 
+def test_execute_tool_query_database_with_name_as_id(notion_adapter, mock_notion_client):
+    # 修正確認: database_id に名前が入っていた場合の自動解決
+    mock_notion_client.request.return_value = {"results": []}
+
+    # "TestDB" is the key in mapping, ID is "db-123"
+    args = {"database_id": "TestDB", "filter_json": {}}
+    result_json = notion_adapter.execute_tool("query_database", args)
+
+    mock_notion_client.request.assert_called_with(
+        path="databases/db-123/query",
+        method="POST",
+        body={}
+    )
+    assert "results" in json.loads(result_json)
+
 def test_execute_tool_create_page(notion_adapter, mock_notion_client):
     # 正常系: create_page
     mock_notion_client.pages.create.return_value = {"id": "page-123"}
