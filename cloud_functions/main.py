@@ -28,13 +28,13 @@ from core.use_cases.process_message import ProcessMessageUseCase
 
 
 # Configuration Loading
-def load_config_and_prompts() -> Tuple[dict, dict]:
+def load_config_and_prompts() -> Tuple[dict, str]:
     """
     設定ファイルとプロンプトファイルを読み込みます。
     Infrastructure層の責務として、外部ファイルシステムからの読み込みを行います。
 
     Returns:
-        Tuple[dict, dict]: (config辞書, prompts辞書)
+        Tuple[dict, str]: (schemas辞書, system_instruction文字列)
     """
     base_path = os.path.dirname(os.path.abspath(__file__))
     schemas_path = os.path.join(base_path, "schemas.yaml")
@@ -47,36 +47,29 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
         logger.warning(f"{schemas_path} not found. Using empty config.")
         schemas = {}
 
-    # Load prompts
-    prompts = {}
-    prompt_files = {
-        "command": "prompts/notion_command_generator.md",
-        "response": "prompts/final_response_generator.md"
-    }
+    # Load system instruction
+    prompt_path = os.path.join(base_path, "prompts/system_instruction.md")
+    if os.path.exists(prompt_path):
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            system_instruction = f.read()
+    else:
+        # Fallback instruction if file missing
+        logger.warning(f"{prompt_path} not found.")
+        system_instruction = "You are a helpful assistant managing Notion databases. Today is {current_date}. Databases: {database_descriptions}"
 
-    for key, rel_path in prompt_files.items():
-        path = os.path.join(base_path, rel_path)
-        if os.path.exists(path):
-            with open(path, 'r', encoding='utf-8') as f:
-                prompts[key] = f.read()
-        else:
-            logger.warning(f"{path} not found.")
-            prompts[key] = ""
-
-    return schemas, prompts
+    return schemas, system_instruction
 
 
 # Dependency Injection / Composition Root
 # アプリケーションの構成ルート。ここで依存関係を注入し、オブジェクトグラフを構築します。
 try:
-    schemas_data, prompts_data = load_config_and_prompts()
+    schemas_data, system_instruction = load_config_and_prompts()
     # schemas.yaml is now the db_mapping itself
     db_mapping = schemas_data
 
     # 1. Initialize Gateways (Adapters)
     gemini_adapter = GeminiAdapter(
-        command_prompt_template=prompts_data.get("command", ""),
-        response_prompt_template=prompts_data.get("response", ""),
+        system_instruction_template=system_instruction,
         notion_database_mapping=db_mapping
     )
     notion_adapter = NotionAdapter(notion_database_mapping=db_mapping)

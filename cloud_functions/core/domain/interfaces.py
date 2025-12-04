@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Union
+from typing import Dict, Any, List, Optional, Callable
 
 class ILanguageModel(ABC):
     """
@@ -8,49 +8,20 @@ class ILanguageModel(ABC):
     """
 
     @abstractmethod
-    async def generate_notion_command(self, user_utterance: str, current_date: str) -> Dict[str, Any]:
+    async def chat_with_tools(self, user_utterance: str, current_date: str, tools: List[Callable]) -> str:
         """
-        ユーザーの発言からNotion操作コマンドを生成します。
+        ツールを使用してユーザーと会話を行い、最終的な応答を生成します。
+        Automatic Function Calling を使用することを想定しています。
 
         Args:
             user_utterance (str): ユーザーの発言
-            current_date (str): 現在の日付
+            current_date (str): 現在の日付（システムプロンプト等で使用）
+            tools (List[Callable]): 使用可能なツールのリスト（関数）
 
         Returns:
-            Dict[str, Any]: 解析されたコマンド情報（JSON）
+            str: 最終的な応答テキスト
         """
         pass
-
-    @abstractmethod
-    async def fix_notion_command(self, user_utterance: str, current_date: str, previous_json: Dict[str, Any], error_message: str) -> Dict[str, Any]:
-        """
-        エラーが発生したNotion操作コマンドを修正します。
-
-        Args:
-            user_utterance (str): ユーザーの発言
-            current_date (str): 現在の日付
-            previous_json (Dict[str, Any]): 前回生成したJSON
-            error_message (str): 発生したエラーメッセージ
-
-        Returns:
-            Dict[str, Any]: 修正されたコマンド情報（JSON）
-        """
-        pass
-
-    @abstractmethod
-    async def generate_final_response(self, user_utterance: str, tool_result: Union[str, Dict[str, Any]]) -> str:
-        """
-        ツールの実行結果に基づいて、最終的な応答を生成します。
-
-        Args:
-            user_utterance (str): ユーザーの発言
-            tool_result (Union[str, Dict[str, Any]]): ツール実行結果（文字列または辞書）
-
-        Returns:
-            str: 生成された応答テキスト
-        """
-        pass
-
 
 class INotionRepository(ABC):
     """
@@ -59,15 +30,58 @@ class INotionRepository(ABC):
     """
 
     @abstractmethod
-    def execute_tool(self, action: str, args: Dict[str, Any]) -> Any:
+    def search_database(self, query: str, database_name: Optional[str] = None) -> str:
         """
-        指定されたアクションと引数でNotionツールを実行します。
+        データベースからページを検索します。
 
         Args:
-            action (str): アクション名
-            args (Dict[str, Any]): パラメータ
+            query (str): 検索キーワード
+            database_name (Optional[str]): データベース名（指定がない場合は全データベース、または適切なものを選択）
 
         Returns:
-            Any: 実行結果（JSON文字列または辞書など）
+            str: 検索結果のJSON文字列（LLMに渡すため）
+        """
+        pass
+
+    @abstractmethod
+    def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> str:
+        """
+        データベースに新しいページを作成します。
+
+        Args:
+            database_name (str): データベース名
+            title (str): ページのタイトル
+            properties (Optional[Dict[str, Any]]): その他のプロパティ
+
+        Returns:
+            str: 作成結果のJSON文字列
+        """
+        pass
+
+    @abstractmethod
+    def update_page(self, page_id: str, properties: Dict[str, Any]) -> str:
+        """
+        ページを更新します。
+
+        Args:
+            page_id (str): ページID
+            properties (Dict[str, Any]): 更新するプロパティ
+
+        Returns:
+            str: 更新結果のJSON文字列
+        """
+        pass
+
+    @abstractmethod
+    def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> str:
+        """
+        ブロックに子ブロックを追加します。
+
+        Args:
+            block_id (str): 親ブロックID
+            children (List[Dict[str, Any]]): 追加する子ブロックのリスト
+
+        Returns:
+             str: 追加結果のJSON文字列
         """
         pass

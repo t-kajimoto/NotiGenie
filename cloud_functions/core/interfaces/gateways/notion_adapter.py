@@ -3,11 +3,11 @@ import json
 import logging
 import sys
 import traceback
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, Union, Optional, List
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
 
-# ロガーの設定: Google Cloud Functionsでログを確認できるようにstderrに出力
+# ロガーの設定
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 if not logger.handlers:
@@ -35,7 +35,6 @@ class NotionAdapter(INotionRepository):
             self.client = Client(auth=self.api_key)
             logger.info("Notion Client initialized successfully.")
         else:
-            # テスト時やAPIキー未設定時
             self.client = None
             if self.api_key != "dummy":
                 logger.warning("Warning: NOTION_API_KEY not set.")
@@ -43,10 +42,6 @@ class NotionAdapter(INotionRepository):
     def validate_connection(self) -> bool:
         """
         Notion APIへの接続を検証します。
-        デプロイ時や起動時にAPIキーが正しいか確認するために使用します。
-
-        Returns:
-            bool: 接続成功ならTrue、失敗ならFalse
         """
         if not self.client:
             logger.error("Validate Connection Failed: Client not initialized (No API Key)")
@@ -54,7 +49,6 @@ class NotionAdapter(INotionRepository):
 
         try:
             logger.info("Validating Notion API connection...")
-            # users.me() は自分のボットユーザー情報を取得する軽量なエンドポイント
             user = self.client.users.me()
             logger.info(f"Notion API Connection Successful. Bot User: {user.get('name')} (ID: {user.get('id')})")
             return True
@@ -65,171 +59,204 @@ class NotionAdapter(INotionRepository):
             logger.error(f"Notion API Connection Failed (Unexpected): {str(e)}")
             return False
 
-    def execute_tool(self, action: str, args: Dict[str, Any]) -> Any:
+    def _resolve_database_id(self, database_name: str) -> Optional[str]:
+        """データベース名からIDを解決します。"""
+        if not database_name:
+            return None
+
+        # マッピングに名前があればそのIDを返す
+        if database_name in self.notion_database_mapping:
+            return self.notion_database_mapping[database_name].get("id")
+
+        return None
+
+    def search_database(self, query: str, database_name: Optional[str] = None) -> str:
         """
-        指定されたアクションと引数でNotionツールを実行します。
-        実行結果は、Use Case側で扱いやすいようにJSON文字列または辞書で返します。
-        現在の実装では、互換性のためにJSON文字列を返すことを推奨しますが、
-        将来的に辞書への移行を見越して実装します。
+        データベースからページを検索します。
         """
-        logger.info(f"Executing Notion tool: action={action}")
-        logger.debug(f"Args: {args}")
+        logger.info(f"Searching database. Query: {query}, DB Name: {database_name}")
 
         if not self.client:
-            msg = "Notion Client not initialized (No API Key)"
+            return json.dumps({"error": "Notion Client not initialized"})
+
+        try:
+            database_id = None
+            if database_name:
+                database_id = self._resolve_database_id(database_name)
+                if not database_id:
+                     return json.dumps({"error": f"Database '{database_name}' not found in configuration."})
+
+            if database_id:
+                # 特定のDB内を検索 (databases.query)
+                payload = {}
+                if query:
+                    # タイトルプロパティ名を特定
+                    title_prop = "Name" # default
+                    if database_name in self.notion_database_mapping:
+                         props = self.notion_database_mapping[database_name].get("properties", {})
+                         for k, v in props.items():
+                             if v.get("type") == "title":
+                                 title_prop = k
+                                 break
+
+                    payload["filter"] = {
+                        "property": title_prop,
+                        "title": {
+                            "contains": query
+                        }
+                    }
+
+                # 2.7.0 workaround
+                response = self.client.request(
+                    path=f"databases/{database_id}/query",
+                    method="POST",
+                    body=payload
+                )
+            else:
+                # 全体検索 (search endpoint)
+                search_params = {"query": query} if query else {}
+                search_params["filter"] = {"value": "page", "property": "object"}
+                response = self.client.search(**search_params)
+
+            # 結果を間引く
+            simplified_results = []
+            for page in response.get("results", []):
+                simplified = {
+                    "id": page.get("id"),
+                    "url": page.get("url"),
+                    "last_edited_time": page.get("last_edited_time"),
+                }
+                # タイトルの取得
+                props = page.get("properties", {})
+                title_text = "No Title"
+                for prop_name, prop_val in props.items():
+                    if prop_val.get("id") == "title" or prop_val.get("type") == "title":
+                        title_list = prop_val.get("title", [])
+                        if title_list:
+                            title_text = "".join([t.get("plain_text", "") for t in title_list])
+                        break
+                simplified["title"] = title_text
+
+                # 主要プロパティの抽出
+                simple_props = {}
+                for k, v in props.items():
+                    type_ = v.get("type")
+                    if type_ == "select":
+                        simple_props[k] = v.get("select", {}).get("name") if v.get("select") else None
+                    elif type_ == "checkbox":
+                        simple_props[k] = v.get("checkbox")
+                    elif type_ == "date":
+                         simple_props[k] = v.get("date")
+
+                simplified["properties"] = simple_props
+                simplified_results.append(simplified)
+
+            return json.dumps(simplified_results, ensure_ascii=False)
+
+        except APIResponseError as e:
+            msg = f"Notion API Error in search: {e.code} - {str(e)}"
+            logger.error(msg)
+            return json.dumps({"error": msg})
+        except Exception as e:
+            msg = f"Unexpected Error in search: {str(e)}"
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return json.dumps({"error": msg})
+
+    def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> str:
+        """
+        データベースに新しいページを作成します。
+        """
+        logger.info(f"Creating page. DB: {database_name}, Title: {title}")
+
+        if not self.client:
+            return json.dumps({"error": "Notion Client not initialized"})
+
+        database_id = self._resolve_database_id(database_name)
+        if not database_id:
+            return json.dumps({"error": f"Database '{database_name}' not found."})
+
+        if properties is None:
+            properties = {}
+
+        # タイトルプロパティの設定
+        title_prop_name = "名前" # Default fallback
+        if database_name in self.notion_database_mapping:
+             props = self.notion_database_mapping[database_name].get("properties", {})
+             for k, v in props.items():
+                 if v.get("type") == "title":
+                     title_prop_name = k
+                     break
+
+        properties[title_prop_name] = {
+            "title": [
+                {
+                    "text": {
+                        "content": title
+                    }
+                }
+            ]
+        }
+
+        try:
+            response = self.client.pages.create(
+                parent={"database_id": database_id},
+                properties=properties
+            )
+            return json.dumps({"status": "success", "id": response.get("id"), "url": response.get("url")})
+        except APIResponseError as e:
+            msg = f"Notion API Error in create_page: {e.code} - {str(e)}"
+            logger.error(msg)
+            return json.dumps({"error": msg})
+        except Exception as e:
+            msg = f"Unexpected Error in create_page: {str(e)}"
             logger.error(msg)
             return json.dumps({"error": msg})
 
+    def update_page(self, page_id: str, properties: Dict[str, Any]) -> str:
+        """
+        ページを更新します。
+        """
+        logger.info(f"Updating page. ID: {page_id}")
+
+        if not self.client:
+            return json.dumps({"error": "Notion Client not initialized"})
+
         try:
-            if action == "query_database":
-                result = self._query_database(args)
-            elif action == "create_page":
-                result = self._create_page(args)
-            elif action == "append_block":
-                result = self._append_block(args)
-            elif action == "append_block_children": # mainブランチの命名に対応
-                result = self._append_block(args)
-            else:
-                msg = f"未知のアクション: {action}"
-                logger.error(msg)
-                return json.dumps({"error": msg})
-
-            # 結果がすでに文字列（JSON）ならそのまま、オブジェクトならJSON化
-            if isinstance(result, str):
-                return result
-            # 成功時もデータサイズによってはログを出すと便利だが、個人情報含むため注意。
-            # ここでは件数などを出す程度にするか、あるいはデバッグ時のみ詳細を出す。
-            return json.dumps(result)
-
+            response = self.client.pages.update(
+                page_id=page_id,
+                properties=properties
+            )
+            return json.dumps({"status": "success", "id": response.get("id")})
         except APIResponseError as e:
-            logger.error(f"Notion API Error: {e.code} - {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
+            msg = f"Notion API Error in update_page: {e.code} - {str(e)}"
+            logger.error(msg)
+            return json.dumps({"error": msg})
         except Exception as e:
-            logger.error(f"Unexpected Error in NotionAdapter: {str(e)}")
-            logger.error(traceback.format_exc())
-            raise
+            msg = f"Unexpected Error in update_page: {str(e)}"
+            logger.error(msg)
+            return json.dumps({"error": msg})
 
-    def _resolve_database_id(self, database_name: str) -> Optional[str]:
-        """データベース名からIDを解決します。"""
-        if database_name in self.notion_database_mapping:
-            return self.notion_database_mapping[database_name].get("id")
-        return None
+    def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> str:
+        """
+        ブロックに子ブロックを追加します。
+        """
+        logger.info(f"Appending block. ID: {block_id}")
 
-    def _query_database(self, args: Dict[str, Any]) -> Any:
-        database_name = args.get("database_name")
-        database_id = args.get("database_id")
+        if not self.client:
+            return json.dumps({"error": "Notion Client not initialized"})
 
-        # Geminiが database_id にデータベース名を入れてくるケースがあるため、
-        # database_id が mapping にある名前なら ID に変換する
-        if database_id and database_id in self.notion_database_mapping:
-            logger.warning(f"database_id '{database_id}' seems to be a database name. Resolving to ID.")
-            database_id = self.notion_database_mapping[database_id].get("id")
-
-        # IDが直接指定されていない場合、名前から解決
-        if not database_id and database_name:
-            database_id = self._resolve_database_id(database_name)
-
-        if not database_id:
-            return {"error": "Database ID or valid Database Name is required."}
-
-        # Mainブランチは "filter", HEADは "filter_json" を使用していた可能性がある
-        # 両対応する
-        filter_param = args.get("filter_json")
-        if not filter_param:
-            filter_param = args.get("filter", {})
-
-        # filter_jsonが文字列で渡された場合のケア
-        if isinstance(filter_param, str):
-            try:
-                filter_param = json.loads(filter_param)
-            except:
-                pass
-
-        # filter_paramが {"filter": {...}} 形式か、中身だけか
-        # notion-client.databases.query は **kwargs で filter={...} を受け取る
-        # もし filter_param が {"filter": ...} ならそれを展開して渡すのが安全
-        if isinstance(filter_param, dict) and "filter" in filter_param and len(filter_param) == 1:
-            query_kwargs = filter_param
-        else:
-            query_kwargs = {"filter": filter_param}
-
-        # 空のフィルタはAPIエラーになる場合があるため、空なら削除する
-        if "filter" in query_kwargs and not query_kwargs["filter"]:
-            del query_kwargs["filter"]
-
-        logger.info(f"Querying database_id={database_id} with params={query_kwargs}")
-
-        # notion-client 2.7.0でDatabasesEndpointからqueryメソッドが消失している可能性があるため、
-        # 直接requestメソッドを使用してAPIを呼び出す形に修正
-        # response = self.client.databases.query(database_id=database_id, **query_kwargs)
-        response = self.client.request(
-            path=f"databases/{database_id}/query",
-            method="POST",
-            body=query_kwargs
-        )
-        return response
-
-    def _create_page(self, args: Dict[str, Any]) -> Any:
-        database_name = args.get("database_name")
-        database_id = args.get("database_id")
-
-        # Geminiが database_id にデータベース名を入れてくるケースがあるため、
-        # database_id が mapping にある名前なら ID に変換する
-        if database_id and database_id in self.notion_database_mapping:
-            logger.warning(f"database_id '{database_id}' seems to be a database name. Resolving to ID.")
-            database_id = self.notion_database_mapping[database_id].get("id")
-
-        if not database_id and database_name:
-            database_id = self._resolve_database_id(database_name)
-
-        # Mainブランチの実装も考慮 (parent引数)
-        parent = args.get("parent")
-        if parent:
-             # parentが明示されている場合はそれを使う
-             pass
-        elif database_id:
-             parent = {"database_id": database_id}
-        else:
-             return {"error": "Database ID or valid Database Name or Parent is required."}
-
-        properties = args.get("properties_json")
-        if not properties:
-            properties = args.get("properties", {})
-
-        if isinstance(properties, str):
-            try:
-                properties = json.loads(properties)
-            except:
-                pass
-
-        logger.info(f"Creating page in database_id={database_id}")
-
-        response = self.client.pages.create(
-            parent=parent,
-            properties=properties
-        )
-        return response
-
-    def _append_block(self, args: Dict[str, Any]) -> Any:
-        block_id = args.get("block_id")
-        if not block_id:
-             return {"error": "block_id is required."}
-
-        children = args.get("children_json")
-        if not children:
-            children = args.get("children", [])
-
-        if isinstance(children, str):
-            try:
-                children = json.loads(children)
-            except:
-                pass
-
-        logger.info(f"Appending block to block_id={block_id}")
-
-        response = self.client.blocks.children.append(
-            block_id=block_id,
-            children=children
-        )
-        return response
+        try:
+            response = self.client.blocks.children.append(
+                block_id=block_id,
+                children=children
+            )
+            return json.dumps({"status": "success", "results_count": len(response.get("results", []))})
+        except APIResponseError as e:
+            msg = f"Notion API Error in append_block: {e.code} - {str(e)}"
+            logger.error(msg)
+            return json.dumps({"error": msg})
+        except Exception as e:
+            msg = f"Unexpected Error in append_block: {str(e)}"
+            logger.error(msg)
+            return json.dumps({"error": msg})

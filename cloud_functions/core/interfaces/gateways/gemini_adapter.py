@@ -3,9 +3,8 @@ import json
 import asyncio
 import logging
 import sys
-import re
 import google.generativeai as genai
-from typing import Dict, Any
+from typing import Dict, Any, List, Callable
 from ...domain.interfaces import ILanguageModel
 
 # ロガーの設定
@@ -16,50 +15,36 @@ if not logger.handlers:
     handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(handler)
 
-
 class GeminiAdapter(ILanguageModel):
     """
     Gemini APIを使用したILanguageModelの実装。
     Infrastructure層に位置し、外部APIとの通信詳細をカプセル化します。
     """
 
-    def __init__(self, command_prompt_template: str, response_prompt_template: str, notion_database_mapping: dict):
+    def __init__(self, system_instruction_template: str, notion_database_mapping: dict):
         """
         初期化処理。
 
         Args:
-            command_prompt_template (str): コマンド生成用のプロンプトテンプレート。
-            response_prompt_template (str): 応答生成用のプロンプトテンプレート。
+            system_instruction_template (str): システムプロンプト（インストラクション）。
             notion_database_mapping (dict): Notionデータベースの定義情報（プロンプトに埋め込むため）。
         """
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
 
-        # Geminiライブラリの設定
-        # Note: genai.configure sets the API key globally.
         genai.configure(api_key=api_key)
 
-        self.command_prompt_template = command_prompt_template
-        self.response_prompt_template = response_prompt_template
+        self.system_instruction_template = system_instruction_template
         self.notion_database_mapping = notion_database_mapping
 
-    def _get_model(self):
+    def _build_system_instruction(self, current_date: str) -> str:
         """
-        GenerativeModelのインスタンスを生成して返します。
-        'Event loop is closed' エラーを防ぐため、リクエストごとに（メソッド呼び出し時に）
-        インスタンス化することを推奨します。
-        """
-        return genai.GenerativeModel('gemini-2.0-flash-lite')
-
-    def _build_command_prompt(self, user_utterance: str, current_date: str) -> str:
-        """
-        コマンド生成用のシステムプロンプトを構築します。
+        システムプロンプトを構築します。
         """
         database_descriptions = ""
         for db_name, db_info in self.notion_database_mapping.items():
             title = db_info.get('title', db_name)
-            # スキーマ情報も含める（Geminiがプロパティを理解しやすくするため）
             properties_info = ""
             if 'properties' in db_info:
                 properties_info = "\n  Properties:\n"
@@ -72,112 +57,43 @@ class GeminiAdapter(ILanguageModel):
 
             database_descriptions += f"- {db_name} ({title}): {db_info['description']}{properties_info}\n"
 
-        full_prompt = self.command_prompt_template.replace("{database_descriptions}", database_descriptions)
-        full_prompt = full_prompt.replace("{user_utterance}", user_utterance)
-        full_prompt = full_prompt.replace("{current_date}", current_date)
-        return full_prompt
+        instruction = self.system_instruction_template.replace("{database_descriptions}", database_descriptions)
+        instruction = instruction.replace("{current_date}", current_date)
+        return instruction
 
-    def _extract_json_from_text(self, text: str) -> str:
+    def _get_model(self, tools: List[Callable], system_instruction: str):
         """
-        Geminiの応答テキストからJSON部分を抽出します。
-        Markdownのコードブロック(```json ... ```)や、前後の会話テキストを除去します。
+        GenerativeModelのインスタンスを生成して返します。
         """
-        text = text.strip()
+        return genai.GenerativeModel(
+            model_name='gemini-2.0-flash-lite',
+            tools=tools,
+            system_instruction=system_instruction
+        )
 
-        # Markdownのコードブロックを探す
-        match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
-        if match:
-            return match.group(1)
-
-        # ``` のみのブロックを探す
-        match = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
-        if match:
-            return match.group(1)
-
-        # JSONオブジェクトの開始と終了を探す (簡易的)
-        # 最も外側の {} を探す
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1 and end > start:
-            return text[start:end+1]
-
-        return text
-
-    async def _generate_content_async(self, prompt: str) -> Dict[str, Any]:
+    async def chat_with_tools(self, user_utterance: str, current_date: str, tools: List[Callable]) -> str:
         """
-        Geminiにプロンプトを投げ、JSONレスポンスをパースして返します。
+        ツールを使用してユーザーと会話を行い、最終的な応答を生成します。
         """
-        logger.info(f"Sending prompt to Gemini:\n{prompt}")
+        system_instruction = self._build_system_instruction(current_date)
+        model = self._get_model(tools, system_instruction)
 
-        try:
-            model = self._get_model()
-            # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行する
-            response = await asyncio.to_thread(model.generate_content, prompt)
+        logger.info(f"Starting chat with tools. User Utterance: {user_utterance}")
 
-            logger.info(f"Received response from Gemini:\n{response.text}")
+        # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行
+        # Automatic Function Callingは start_chat(enable_automatic_function_calling=True) で有効化し、
+        # send_message を呼び出すと自動でループする。
 
-            # JSONとしてパースするためのクリーニング処理
-            cleaned_json = self._extract_json_from_text(response.text)
-
-            return json.loads(cleaned_json)
-
-        except json.JSONDecodeError as e:
-            # JSONパースエラーの場合
-            raw_text = response.text if 'response' in locals() else "Unknown"
-            error_message = f"JSON parse error: {e}. Raw response: {raw_text}"
-            logger.error(error_message)
-            # エラー時もJSONを返さないと呼び出し元で困るため、エラーアクションを返す
-            return {"action": "error", "message": error_message}
-        except Exception as e:
-            # その他のAPIエラーなど
-            error_message = f"Gemini API error: {e}"
-            logger.error(error_message)
-            return {"action": "error", "message": error_message}
-
-    async def generate_notion_command(self, user_utterance: str, current_date: str) -> Dict[str, Any]:
-        """
-        ユーザーの発言からNotion操作コマンドを生成します。
-        """
-        full_prompt = self._build_command_prompt(user_utterance, current_date)
-        return await self._generate_content_async(full_prompt)
-
-    async def fix_notion_command(self, user_utterance: str, current_date: str, previous_json: Dict[str, Any], error_message: str) -> Dict[str, Any]:
-        """
-        エラーが発生したNotion操作コマンドを修正します。
-        """
-        base_prompt = self._build_command_prompt(user_utterance, current_date)
-
-        # 修正指示を追加
-        fix_instruction = f"""
-
-### 修正指示:
-前回のJSON生成で以下のエラーが発生しました。
-エラーメッセージ: {error_message}
-前回生成したJSON: {json.dumps(previous_json, ensure_ascii=False)}
-
-上記のエラー原因を分析し、正しいJSONコマンドを再生成してください。
-特に、プロパティ名や値の型、必須フィールドが正しいか確認してください。
-"""
-        full_prompt = base_prompt + fix_instruction
-        return await self._generate_content_async(full_prompt)
-
-    async def generate_final_response(self, user_utterance: str, tool_result: str) -> str:
-        """
-        ツールの実行結果に基づいて、最終的な応答を生成します。
-        """
-        prompt = self.response_prompt_template.replace("{user_utterance}", user_utterance)
-        prompt = prompt.replace("{tool_result}", tool_result)
-
-        logger.info(f"Sending final response prompt to Gemini:\n{prompt}")
-
-        try:
-            model = self._get_model()
-            # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行する
-            response = await asyncio.to_thread(model.generate_content, prompt)
-
-            logger.info(f"Received final response from Gemini:\n{response.text}")
-
+        def _run_chat():
+            chat = model.start_chat(enable_automatic_function_calling=True)
+            response = chat.send_message(user_utterance)
             return response.text
+
+        try:
+            response_text = await asyncio.to_thread(_run_chat)
+            logger.info(f"Received response from Gemini:\n{response_text}")
+            return response_text
         except Exception as e:
-            logger.error(f"Gemini API response generation error: {e}")
-            return f"Gemini API response generation error: {e}"
+            msg = f"Gemini API error in chat_with_tools: {e}"
+            logger.error(msg)
+            return f"申し訳ありません、エラーが発生しました: {e}"
