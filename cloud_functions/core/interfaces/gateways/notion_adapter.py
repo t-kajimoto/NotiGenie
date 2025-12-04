@@ -81,7 +81,7 @@ class NotionAdapter(INotionRepository):
         # 両対応する
         filter_param = args.get("filter_json")
         if not filter_param:
-            filter_param = args.get("filter", {})
+            filter_param = args.get("filter")
 
         # filter_jsonが文字列で渡された場合のケア
         if isinstance(filter_param, str):
@@ -93,10 +93,12 @@ class NotionAdapter(INotionRepository):
         # filter_paramが {"filter": {...}} 形式か、中身だけか
         # notion-client.databases.query は **kwargs で filter={...} を受け取る
         # もし filter_param が {"filter": ...} ならそれを展開して渡すのが安全
-        if isinstance(filter_param, dict) and "filter" in filter_param and len(filter_param) == 1:
-            query_kwargs = filter_param
-        else:
-            query_kwargs = {"filter": filter_param}
+        query_kwargs = {}
+        if filter_param:
+            if isinstance(filter_param, dict) and "filter" in filter_param and len(filter_param) == 1:
+                query_kwargs = filter_param
+            else:
+                query_kwargs = {"filter": filter_param}
 
         response = self.client.databases.query(database_id=database_id, **query_kwargs)
         return response

@@ -4,6 +4,8 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
 import asyncio
 import datetime
+import traceback
+import sys
 from zoneinfo import ZoneInfo
 from ...use_cases.process_message import ProcessMessageUseCase
 
@@ -89,7 +91,8 @@ class LineController:
             )
 
         except Exception as e:
-            print(f"Error processing LINE message: {e}")
+            print(f"Error processing LINE message: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             # エラー時もユーザーに応答を返す（UX向上のため）
             if self.messaging_api:
                 try:
@@ -100,6 +103,7 @@ class LineController:
                         )
                     )
                 except Exception as inner_e:
-                    print(f"Error sending error message: {inner_e}")
+                    print(f"Error sending error message: {inner_e}", file=sys.stderr)
+                    traceback.print_exc(file=sys.stderr)
         finally:
             loop.close()

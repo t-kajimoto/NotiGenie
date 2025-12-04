@@ -4,6 +4,8 @@ import os
 import json
 import yaml
 import asyncio
+import traceback
+import sys
 from typing import Tuple
 from linebot.v3.exceptions import InvalidSignatureError
 
@@ -79,7 +81,9 @@ try:
     line_controller = LineController(use_case=process_message_use_case)
 
 except Exception as e:
-    print(f"Initialization Error: {e}")
+    # Use stderr for error logging in Cloud Functions
+    print(f"Initialization Error: {e}", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
     # 初期化失敗時はNoneにしておき、リクエスト時にエラーを返す
     process_message_use_case = None
     line_controller = None
@@ -114,7 +118,8 @@ def main(request: Request):
         except InvalidSignatureError:
             abort(400)
         except Exception as e:
-            print(f"LINE Webhook Error: {e}")
+            print(f"LINE Webhook Error: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             return f"Error: {e}", 500
 
     # 2. Raspberry Pi / API Request Handling
