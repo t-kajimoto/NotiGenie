@@ -120,8 +120,12 @@ class NotionAdapter(INotionRepository):
 
                 # 2.7.0 workaround
                 # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
+                # Use absolute URL to prevent any path joining issues with the client's base_url
+                request_url = f"https://api.notion.com/v1/databases/{database_id}/query"
+                logger.info(f"Executing request. URL: {request_url}, DatabaseID: {database_id}")
+
                 response = self.client.request(
-                    path=f"databases/{database_id}/query",
+                    path=request_url,
                     method="POST",
                     body=payload
                 )
@@ -169,6 +173,8 @@ class NotionAdapter(INotionRepository):
         except APIResponseError as e:
             msg = f"Notion API Error in search: {e.code} - {str(e)}"
             logger.error(msg)
+            if hasattr(e, 'request') and e.request:
+                logger.error(f"Failed Request URL: {e.request.url}")
             return json.dumps({"error": msg})
         except Exception as e:
             msg = f"Unexpected Error in search: {str(e)}"
@@ -226,6 +232,8 @@ class NotionAdapter(INotionRepository):
         except APIResponseError as e:
             msg = f"Notion API Error in create_page: {e.code} - {str(e)}"
             logger.error(msg)
+            if hasattr(e, 'request') and e.request:
+                logger.error(f"Failed Request URL: {e.request.url}")
             return json.dumps({"error": msg})
         except Exception as e:
             msg = f"Unexpected Error in create_page: {str(e)}"
@@ -250,6 +258,8 @@ class NotionAdapter(INotionRepository):
         except APIResponseError as e:
             msg = f"Notion API Error in update_page: {e.code} - {str(e)}"
             logger.error(msg)
+            if hasattr(e, 'request') and e.request:
+                logger.error(f"Failed Request URL: {e.request.url}")
             return json.dumps({"error": msg})
         except Exception as e:
             msg = f"Unexpected Error in update_page: {str(e)}"
@@ -274,6 +284,8 @@ class NotionAdapter(INotionRepository):
         except APIResponseError as e:
             msg = f"Notion API Error in append_block: {e.code} - {str(e)}"
             logger.error(msg)
+            if hasattr(e, 'request') and e.request:
+                logger.error(f"Failed Request URL: {e.request.url}")
             return json.dumps({"error": msg})
         except Exception as e:
             msg = f"Unexpected Error in append_block: {str(e)}"

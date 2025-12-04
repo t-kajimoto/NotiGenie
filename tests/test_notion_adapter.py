@@ -30,7 +30,7 @@ def test_search_database_with_query(notion_adapter, mock_notion_client):
     result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
 
     mock_notion_client.request.assert_called_with(
-        path=f"databases/{TEST_DB_UUID}/query",
+        path=f"https://api.notion.com/v1/databases/{TEST_DB_UUID}/query",
         method="POST",
         body={"filter": {"property": "名前", "title": {"contains": "milk"}}}
     )
