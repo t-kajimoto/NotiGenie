@@ -1,100 +1,82 @@
 import pvporcupine
 from pvrecorder import PvRecorder
-import threading
 import os
 
 class WakeWordEngine:
     """
-    Picovoice Porcupineを使用してウェイクワード検知を行うクラス。
+    Class for wake word detection using Picovoice Porcupine.
     """
-    def __init__(self, access_key, keywords=None, model_path=None, sensitivity=0.5):
+    def __init__(self, access_key, keywords=None, keyword_paths=None, model_path=None, sensitivity=0.5):
         self.access_key = access_key
         self.keywords = keywords
+        self.keyword_paths = keyword_paths
         self.model_path = model_path
         self.sensitivity = sensitivity
-        self.is_listening = False
-        self._listen_thread = None
-        self._callback = None
+        self.porcupine = None
+        self.recorder = None
 
-        # Porcupineの初期化
         try:
-            if keywords is None:
-                # デフォルトのキーワード（Porcupineなど）を使用
-                self.porcupine = pvporcupine.create(access_key=access_key)
-            else:
+            # Initialize Porcupine
+            if keyword_paths:
                 self.porcupine = pvporcupine.create(
+                    access_key=access_key,
+                    keyword_paths=keyword_paths,
+                    model_path=model_path,
+                    sensitivities=[sensitivity] * len(keyword_paths)
+                )
+            elif keywords:
+                 self.porcupine = pvporcupine.create(
                     access_key=access_key,
                     keywords=keywords,
                     model_path=model_path,
                     sensitivities=[sensitivity] * len(keywords)
                 )
+            else:
+                self.porcupine = pvporcupine.create(access_key=access_key)
 
-            # Recorderの初期化
+            # Initialize Recorder
             self.recorder = PvRecorder(device_index=-1, frame_length=self.porcupine.frame_length)
-            print(f"Porcupine initialized. Keywords: {self.keywords if self.keywords else 'Default'}")
+
+            keywords_str = f"Paths: {keyword_paths}" if keyword_paths else f"Keywords: {keywords if keywords else 'Default'}"
+            print(f"Porcupine initialized. {keywords_str}")
 
         except Exception as e:
-            print(f"WakeWordEngine初期化エラー: {e}")
+            print(f"WakeWordEngine initialization error: {e}")
             raise e
 
-    def start_listening(self, callback):
+    def wait_for_wake_word(self):
         """
-        ウェイクワードの監視を開始する。
+        Blocks until the wake word is detected.
 
-        Args:
-            callback (function): ウェイクワード検知時に実行されるコールバック関数。
-        """
-        if self.is_listening:
-            print("すでに監視中です。")
-            return
-
-        self._callback = callback
-        self.is_listening = True
-
-        # 別スレッドで監視ループを開始
-        self._listen_thread = threading.Thread(target=self._listen_loop)
-        self._listen_thread.daemon = True
-        self._listen_thread.start()
-        print("ウェイクワードの監視を開始しました。")
-
-    def stop_listening(self):
-        """
-        ウェイクワードの監視を停止する。
-        """
-        self.is_listening = False
-        if self._listen_thread and self._listen_thread.is_alive():
-            self._listen_thread.join(timeout=1.0)
-        self._listen_thread = None
-        print("ウェイクワードの監視を停止しました。")
-
-    def _listen_loop(self):
-        """
-        内部監視ループ。別スレッドで実行される。
+        Returns:
+            int: The index of the detected keyword.
         """
         try:
             self.recorder.start()
-            print(f"Listening for wake word...")
+            print("Listening for wake word...")
 
-            while self.is_listening:
+            while True:
                 pcm = self.recorder.read()
                 result = self.porcupine.process(pcm)
 
                 if result >= 0:
-                    print(f"ウェイクワードを検知しました！ (Index: {result})")
-                    self._callback()
+                    print(f"Wake word detected! (Index: {result})")
+                    return result
 
+        except KeyboardInterrupt:
+            print("Stopping...")
+            raise
         except Exception as e:
-            print(f"監視ループエラー: {e}")
+            print(f"Error in wait_for_wake_word: {e}")
+            raise e
         finally:
             if self.recorder.is_recording:
                 self.recorder.stop()
 
     def cleanup(self):
         """
-        リソースを解放する。
+        Releases resources.
         """
-        self.stop_listening()
-
         if hasattr(self, 'porcupine') and self.porcupine is not None:
             self.porcupine.delete()
 

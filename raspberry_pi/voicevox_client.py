@@ -2,11 +2,17 @@ import requests
 import json
 import sounddevice as sd
 import numpy as np
+import os
 
 class VoicevoxClient:
-    def __init__(self, host="localhost", port=50021, speaker_id=1):
+    def __init__(self, host=None, port=50021, speaker_id=1):
+        # Allow environment variable override, default to 'voicevox_core' (Docker service name)
+        if host is None:
+            host = os.getenv("VOICEVOX_HOST", "voicevox_core")
+
         self.base_url = f"http://{host}:{port}"
         self.speaker_id = speaker_id
+        print(f"VoicevoxClient initialized for {self.base_url}")
 
     def generate_and_play(self, text):
         try:
@@ -28,9 +34,8 @@ class VoicevoxClient:
             audio_content = response.content
 
             # 3. Play
-            # Converting bytes to numpy array for sounddevice
+            # Voicevox typically returns 24kHz audio
             audio_array = np.frombuffer(audio_content, dtype=np.int16)
-            # Assuming 24000Hz as default for Voicevox
             sd.play(audio_array, samplerate=24000)
             sd.wait()
 
