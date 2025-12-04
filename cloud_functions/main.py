@@ -15,16 +15,17 @@ from core.use_cases.process_message import ProcessMessageUseCase
 
 
 # Configuration Loading
-def load_config_and_prompts() -> Tuple[dict, dict]:
+def load_config_and_prompts() -> Tuple[dict, dict, dict]:
     """
     設定ファイルとプロンプトファイルを読み込みます。
     Infrastructure層の責務として、外部ファイルシステムからの読み込みを行います。
 
     Returns:
-        Tuple[dict, dict]: (config辞書, prompts辞書)
+        Tuple[dict, dict, dict]: (config辞書, prompts辞書, schemas辞書)
     """
     base_path = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(base_path, "config.yaml")
+    schemas_path = os.path.join(base_path, "schemas.yaml")
 
     # Load config
     if os.path.exists(config_path):
@@ -33,6 +34,14 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
     else:
         print(f"Warning: {config_path} not found. Using empty config.")
         config = {}
+
+    # Load schemas
+    if os.path.exists(schemas_path):
+        with open(schemas_path, 'r', encoding='utf-8') as f:
+            schemas = yaml.safe_load(f) or {}
+    else:
+        print(f"Warning: {schemas_path} not found. Using empty schemas.")
+        schemas = {}
 
     # Load prompts
     prompts = {}
@@ -50,14 +59,19 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
             print(f"Warning: {path} not found.")
             prompts[key] = ""
 
-    return config, prompts
+    return config, prompts, schemas
 
 
 # Dependency Injection / Composition Root
 # アプリケーションの構成ルート。ここで依存関係を注入し、オブジェクトグラフを構築します。
 try:
-    config_data, prompts_data = load_config_and_prompts()
+    config_data, prompts_data, schemas_data = load_config_and_prompts()
     db_mapping = config_data.get("notion_databases", {})
+
+    # Merge schemas into db_mapping
+    for db_name, db_info in db_mapping.items():
+        if db_name in schemas_data:
+            db_info["schema"] = schemas_data[db_name]
 
     # 1. Initialize Gateways (Adapters)
     gemini_adapter = GeminiAdapter(

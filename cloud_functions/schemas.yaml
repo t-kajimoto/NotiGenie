@@ -1,0 +1,14 @@
+# Notionデータベースのスキーマ定義
+# データベースの論理名をキーとし、そのプロパティ定義を記述してください。
+# 例:
+# 買い物リスト:
+#   properties:
+#     名前:
+#       type: title
+#     カテゴリ:
+#       type: select
+#       options:
+#         - 食料品
+#         - 日用品
+#     購入済み:
+#       type: checkbox
