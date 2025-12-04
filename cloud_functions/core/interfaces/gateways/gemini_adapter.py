@@ -3,6 +3,7 @@ import json
 import asyncio
 import logging
 import sys
+import re
 import google.generativeai as genai
 from typing import Dict, Any
 from ...domain.interfaces import ILanguageModel
@@ -76,6 +77,32 @@ class GeminiAdapter(ILanguageModel):
         full_prompt = full_prompt.replace("{current_date}", current_date)
         return full_prompt
 
+    def _extract_json_from_text(self, text: str) -> str:
+        """
+        Geminiの応答テキストからJSON部分を抽出します。
+        Markdownのコードブロック(```json ... ```)や、前後の会話テキストを除去します。
+        """
+        text = text.strip()
+
+        # Markdownのコードブロックを探す
+        match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+        if match:
+            return match.group(1)
+
+        # ``` のみのブロックを探す
+        match = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
+        if match:
+            return match.group(1)
+
+        # JSONオブジェクトの開始と終了を探す (簡易的)
+        # 最も外側の {} を探す
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            return text[start:end+1]
+
+        return text
+
     async def _generate_content_async(self, prompt: str) -> Dict[str, Any]:
         """
         Geminiにプロンプトを投げ、JSONレスポンスをパースして返します。
@@ -90,8 +117,8 @@ class GeminiAdapter(ILanguageModel):
             logger.info(f"Received response from Gemini:\n{response.text}")
 
             # JSONとしてパースするためのクリーニング処理
-            # Geminiは時々Markdownのコードブロック(```json ... ```)を含めて返すため、それを除去します
-            cleaned_json = response.text.strip().replace("```json", "").replace("```", "").strip()
+            cleaned_json = self._extract_json_from_text(response.text)
+
             return json.loads(cleaned_json)
 
         except json.JSONDecodeError as e:
@@ -99,6 +126,7 @@ class GeminiAdapter(ILanguageModel):
             raw_text = response.text if 'response' in locals() else "Unknown"
             error_message = f"JSON parse error: {e}. Raw response: {raw_text}"
             logger.error(error_message)
+            # エラー時もJSONを返さないと呼び出し元で困るため、エラーアクションを返す
             return {"action": "error", "message": error_message}
         except Exception as e:
             # その他のAPIエラーなど
