@@ -65,7 +65,7 @@
 ```json
 {
   "action": "create_page",
-  "database_name": "買い物リスト",
+  "database_name": "shopping_list",
   "properties_json": {
     "名前": {
       "title": [
@@ -84,7 +84,7 @@
 ```json
 {
   "action": "query_database",
-  "database_name": "献立リスト",
+  "database_name": "menu_list",
   "filter_json": {
     "filter": {
       "property": "食べる日",
@@ -100,7 +100,7 @@
 ```json
 {
   "action": "get_database",
-  "database_name": "タスクリスト"
+  "database_name": "todo_list"
 }
 ```
 

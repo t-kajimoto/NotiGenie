@@ -40,7 +40,19 @@ class GeminiAdapter(ILanguageModel):
         # プロンプトの構築: データベース情報を動的に埋め込みます
         database_descriptions = ""
         for db_name, db_info in self.notion_database_mapping.items():
-            database_descriptions += f"- {db_name}: {db_info['description']}\n"
+            title = db_info.get('title', db_name)
+            # スキーマ情報も含める（Geminiがプロパティを理解しやすくするため）
+            properties_info = ""
+            if 'properties' in db_info:
+                properties_info = "\n  Properties:\n"
+                for prop_name, prop_details in db_info['properties'].items():
+                    prop_type = prop_details.get('type', 'unknown')
+                    options = ""
+                    if 'options' in prop_details:
+                        options = f" (Options: {', '.join(prop_details['options'])})"
+                    properties_info += f"  - {prop_name} ({prop_type}){options}\n"
+
+            database_descriptions += f"- {db_name} ({title}): {db_info['description']}{properties_info}\n"
 
         full_prompt = self.command_prompt_template.replace("{database_descriptions}", database_descriptions)
         full_prompt = full_prompt.replace("{user_utterance}", user_utterance)

@@ -25,15 +25,15 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
         Tuple[dict, dict]: (config辞書, prompts辞書)
     """
     base_path = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_path, "config.yaml")
+    schemas_path = os.path.join(base_path, "schemas.yaml")
 
-    # Load config
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
+    # Load schemas (previously config.yaml)
+    if os.path.exists(schemas_path):
+        with open(schemas_path, 'r', encoding='utf-8') as f:
+            schemas = yaml.safe_load(f)
     else:
-        print(f"Warning: {config_path} not found. Using empty config.")
-        config = {}
+        print(f"Warning: {schemas_path} not found. Using empty config.")
+        schemas = {}
 
     # Load prompts
     prompts = {}
@@ -51,14 +51,15 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
             print(f"Warning: {path} not found.")
             prompts[key] = ""
 
-    return config, prompts
+    return schemas, prompts
 
 
 # Dependency Injection / Composition Root
 # アプリケーションの構成ルート。ここで依存関係を注入し、オブジェクトグラフを構築します。
 try:
-    config_data, prompts_data = load_config_and_prompts()
-    db_mapping = config_data.get("notion_databases", {})
+    schemas_data, prompts_data = load_config_and_prompts()
+    # schemas.yaml is now the db_mapping itself
+    db_mapping = schemas_data
 
     # 1. Initialize Gateways (Adapters)
     gemini_adapter = GeminiAdapter(
