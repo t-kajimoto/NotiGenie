@@ -1,0 +1,122 @@
+todo_list:
+  title: "やりたいこと・話したいことリスト"
+  id: "1ff1ac9c8c7080da9f23f594ec8bf0b5"
+  description: "やりたいことや話したいこと、タスクを管理するデータベース"
+  properties:
+    名前:
+      type: title
+      description: "タスクや話題の内容"
+    いつまでくらいに:
+      type: date
+      description: "期限や目安の日付"
+    カテゴリ:
+      type: select
+      options:
+        - "やりたいこと"
+        - "話したいこと"
+    テーマ:
+      type: select
+      options:
+        - "ちょっとした話"
+        - "真面目な話"
+        - "簡易タスク"
+    メモ:
+      type: rich_text
+      description: "詳細やURLなどのメモ"
+    完了フラグ:
+      type: checkbox
+      description: "完了したかどうか"
+    完了日:
+      type: date
+      description: "完了した日付"
+    担当:
+      type: select
+      options:
+        - "もも"
+        - "共有"
+        - "たくみ"
+    提案者:
+      type: select
+      options:
+        - "もも"
+        - "たくみ"
+
+menu_list:
+  title: "献立リスト"
+  id: "1ff1ac9c8c708098bf4ac641178c9b8d"
+  description: "日々の献立を管理するデータベース"
+  properties:
+    名前:
+      type: title
+      description: "料理名"
+    サーブ担当:
+      type: select
+      options:
+        - "たくみ"
+        - "もも"
+        - "共有"
+    メモ:
+      type: rich_text
+    準備済みフラグ:
+      type: checkbox
+    種類:
+      type: select
+      options:
+        - "主菜"
+        - "副菜"
+        - "汁物"
+    調理担当:
+      type: select
+      options:
+        - "たくみ"
+        - "もも"
+    調理方法:
+      type: select
+      options:
+        - "インスタント"
+        - "レンチン冷凍"
+        - "下味冷凍"
+        - "冷蔵保存"
+        - "材料冷蔵"
+        - "湯煎冷凍"
+    食べたフラグ:
+      type: checkbox
+    食べた日:
+      type: date
+    食べる日:
+      type: date
+
+shopping_list:
+  title: "買い物リスト"
+  id: "1ff1ac9c8c7080c89ae3fd7556f64880"
+  description: "購入する必要があるものを管理するデータベース"
+  properties:
+    名前:
+      type: title
+      description: "商品名"
+    カテゴリ:
+      type: select
+      options:
+        - "日用品"
+        - "食べ物"
+    メモ:
+      type: rich_text
+    完了フラグ:
+      type: checkbox
+      description: "購入済みかどうか"
+    担当:
+      type: select
+      options:
+        - "たくみ"
+        - "もも"
+        - "共有"
+    緊急度:
+      type: select
+      options:
+        - "なんとなく欲しいなぁ"
+        - "タイミングが合えば欲しい"
+        - "今すぐ欲しい"
+        - "今週中に欲しい"
+        - "来月中くらいには欲しい"
+    購入日:
+      type: date
