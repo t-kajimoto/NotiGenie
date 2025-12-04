@@ -1,6 +1,7 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import json
+import os
 from notion_client import APIResponseError
 from cloud_functions.core.interfaces.gateways.notion_adapter import NotionAdapter
 
@@ -12,7 +13,9 @@ def mock_notion_client(mocker):
     return mock_instance
 
 @pytest.fixture
-def notion_adapter(mock_notion_client):
+def notion_adapter(mock_notion_client, monkeypatch):
+    # テスト用に環境変数を設定（dummyだと初期化されないため）
+    monkeypatch.setenv("NOTION_API_KEY", "test_key")
     mapping = {"TestDB": {"id": "db-123", "description": "Test DB"}}
     return NotionAdapter(mapping)
 
@@ -26,6 +29,7 @@ def test_execute_tool_query_database(notion_adapter, mock_notion_client):
 
     # ID変換が行われているか確認
     # NotionAdapter実装に合わせて修正: filter_param は **kwargs として渡される
+    # filter_json={"filter": {}} の場合、kwargs={"filter": {}} となる
     mock_notion_client.databases.query.assert_called_with(database_id="db-123", filter={})
     assert "results" in json.loads(result_json)
 
@@ -37,6 +41,7 @@ def test_execute_tool_create_page(notion_adapter, mock_notion_client):
     result_json = notion_adapter.execute_tool("create_page", args)
 
     # ID変換が行われているか確認
+    # create_pageでは parent={"database_id": ...} と properties={...} が渡される
     mock_notion_client.pages.create.assert_called_with(parent={"database_id": "db-123"}, properties={"Name": "New Page"})
     assert "id" in json.loads(result_json)
 
