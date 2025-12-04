@@ -25,6 +25,8 @@ jobs:
       - name: Deploy to Cloud Functions
         run: |
           cd cloud_functions
+          # Capture stderr to a file and allow failure momentarily
+          set +e
           gcloud functions deploy notigenie-backend \
             --gen2 \
             --runtime=python311 \
@@ -33,4 +35,21 @@ jobs:
             --entry-point=main \
             --trigger-http \
             --allow-unauthenticated \
-            --set-env-vars LINE_CHANNEL_ACCESS_TOKEN=${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }},LINE_CHANNEL_SECRET=${{ secrets.LINE_CHANNEL_SECRET }},NOTION_API_KEY=${{ secrets.NOTION_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            --set-env-vars LINE_CHANNEL_ACCESS_TOKEN=${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }},LINE_CHANNEL_SECRET=${{ secrets.LINE_CHANNEL_SECRET }},NOTION_API_KEY=${{ secrets.NOTION_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} 2> deploy_stderr.log
+
+          EXIT_CODE=$?
+          set -e
+
+          # Display the log
+          cat deploy_stderr.log
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "Deployment failed with exit code $EXIT_CODE"
+
+            # Check for specific IAM permission error
+            if grep -q "Permission 'run.services.setIamPolicy' denied" deploy_stderr.log; then
+              echo "::error::IAM Permission Error Detected: The service account is missing 'run.services.setIamPolicy' permission. Please ensure the service account has 'roles/run.admin' or equivalent permissions to set IAM policies for unauthenticated access (required for --allow-unauthenticated)."
+            fi
+
+            exit $EXIT_CODE
+          fi
