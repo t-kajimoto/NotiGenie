@@ -2,8 +2,12 @@ import pytest
 from unittest.mock import MagicMock
 import json
 import os
+import uuid
 from notion_client import APIResponseError
 from cloud_functions.core.interfaces.gateways.notion_adapter import NotionAdapter
+
+# Constant UUID for testing
+TEST_DB_UUID = "12345678-1234-5678-1234-567812345678"
 
 @pytest.fixture
 def mock_notion_client(mocker):
@@ -16,7 +20,7 @@ def mock_notion_client(mocker):
 def notion_adapter(mock_notion_client, monkeypatch):
     # テスト用に環境変数を設定（dummyだと初期化されないため）
     monkeypatch.setenv("NOTION_API_KEY", "test_key")
-    mapping = {"TestDB": {"id": "db-123", "description": "Test DB", "properties": {"名前": {"type": "title"}}}}
+    mapping = {"TestDB": {"id": TEST_DB_UUID, "description": "Test DB", "properties": {"名前": {"type": "title"}}}}
     return NotionAdapter(mapping)
 
 def test_search_database_with_query(notion_adapter, mock_notion_client):
@@ -26,7 +30,7 @@ def test_search_database_with_query(notion_adapter, mock_notion_client):
     result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
 
     mock_notion_client.request.assert_called_with(
-        path="databases/db-123/query",
+        path=f"databases/{TEST_DB_UUID}/query",
         method="POST",
         body={"filter": {"property": "名前", "title": {"contains": "milk"}}}
     )
@@ -51,7 +55,7 @@ def test_create_page(notion_adapter, mock_notion_client):
 
     mock_notion_client.pages.create.assert_called()
     call_kwargs = mock_notion_client.pages.create.call_args[1]
-    assert call_kwargs["parent"]["database_id"] == "db-123"
+    assert call_kwargs["parent"]["database_id"] == TEST_DB_UUID
     assert call_kwargs["properties"]["名前"]["title"][0]["text"]["content"] == "New Page"
 
     res = json.loads(result_json)
