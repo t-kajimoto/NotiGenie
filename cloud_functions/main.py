@@ -24,7 +24,8 @@ def load_config_and_prompts() -> Tuple[dict, dict]:
         Tuple[dict, dict]: (config辞書, prompts辞書)
     """
     base_path = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_path, "config.yaml")
+    # config.yaml is replaced by schemas.yaml
+    config_path = os.path.join(base_path, "schemas.yaml")
 
     # Load config
     if os.path.exists(config_path):

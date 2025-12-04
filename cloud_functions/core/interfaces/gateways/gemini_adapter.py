@@ -41,6 +41,9 @@ class GeminiAdapter(ILanguageModel):
         database_descriptions = ""
         for db_name, db_info in self.notion_database_mapping.items():
             database_descriptions += f"- {db_name}: {db_info['description']}\n"
+            if "properties" in db_info:
+                schema_json = json.dumps(db_info["properties"], ensure_ascii=False, indent=2)
+                database_descriptions += f"  Schema: {schema_json}\n"
 
         full_prompt = self.command_prompt_template.replace("{database_descriptions}", database_descriptions)
         full_prompt = full_prompt.replace("{user_utterance}", user_utterance)

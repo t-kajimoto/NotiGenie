@@ -1,0 +1,52 @@
+# Notionデータベース設定
+# 各データベースのID、説明、およびスキーマ（プロパティ定義）を記述します。
+
+notion_databases:
+  買い物リスト:
+    id: "YOUR_DATABASE_ID"
+    description: |
+      日用品や食料品など、購入が必要なものを管理するリストです。
+      家族全員で共有し、アイテムの追加や削除を行います。
+    properties:
+      名前:
+        type: title
+      カテゴリ:
+        type: select
+        options:
+          - 食料品
+          - 日用品
+      購入済み:
+        type: checkbox
+  在庫:
+    id: "YOUR_DATABASE_ID"
+    description: |
+      冷蔵庫やパントリーにある食材や物品の在庫を管理します。
+      残量確認や消費期限の追跡に利用します。
+    properties:
+      名前:
+        type: title
+      数量:
+        type: number
+      単位:
+        type: select
+        options:
+          - 個
+          - ml
+          - g
+          - パック
+      消費期限:
+        type: date
+  献立リスト:
+    id: "YOUR_DATABASE_ID"
+    description: |
+      日々の献立のアイデアやレシピを管理します。
+      過去の献立を検索したり、新しいレシピを追加したりします。
+    properties:
+      料理名:
+        type: title
+      日付:
+        type: date
+      レシピURL:
+        type: url
+      材料:
+        type: rich_text
