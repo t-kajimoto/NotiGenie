@@ -81,6 +81,14 @@ try:
     )
     notion_adapter = NotionAdapter(notion_database_mapping=db_mapping)
 
+    # ---------------------------------------------------------
+    # Notion API Connection Check (Deployment/Startup Verification)
+    # ---------------------------------------------------------
+    # デプロイ時やコールドスタート時にNotionへの接続を確認し、ログに残します。
+    # これにより、APIキーの設定ミスなどを早期に発見できます。
+    notion_adapter.validate_connection()
+    # ---------------------------------------------------------
+
     # 2. Initialize Use Case (Inject Gateways)
     process_message_use_case = ProcessMessageUseCase(
         language_model=gemini_adapter,

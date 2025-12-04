@@ -40,6 +40,31 @@ class NotionAdapter(INotionRepository):
             if self.api_key != "dummy":
                 logger.warning("Warning: NOTION_API_KEY not set.")
 
+    def validate_connection(self) -> bool:
+        """
+        Notion APIへの接続を検証します。
+        デプロイ時や起動時にAPIキーが正しいか確認するために使用します。
+
+        Returns:
+            bool: 接続成功ならTrue、失敗ならFalse
+        """
+        if not self.client:
+            logger.error("Validate Connection Failed: Client not initialized (No API Key)")
+            return False
+
+        try:
+            logger.info("Validating Notion API connection...")
+            # users.me() は自分のボットユーザー情報を取得する軽量なエンドポイント
+            user = self.client.users.me()
+            logger.info(f"Notion API Connection Successful. Bot User: {user.get('name')} (ID: {user.get('id')})")
+            return True
+        except APIResponseError as e:
+            logger.error(f"Notion API Connection Failed: {e.code} - {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Notion API Connection Failed (Unexpected): {str(e)}")
+            return False
+
     def execute_tool(self, action: str, args: Dict[str, Any]) -> Any:
         """
         指定されたアクションと引数でNotionツールを実行します。
