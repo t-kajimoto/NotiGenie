@@ -46,13 +46,13 @@ try:
 
     # Initialize handlers
     # Note: Environment variables must be set in the Cloud Functions environment
-    line_handler = LineHandler()
     gemini_agent = GeminiAgent(
         command_prompt_template=prompts_data.get("command", ""),
         response_prompt_template=prompts_data.get("response", ""),
         notion_database_mapping=db_mapping
     )
     notion_handler = NotionHandler(notion_database_mapping=db_mapping)
+    line_handler = LineHandler(gemini_agent, notion_handler)
 
 except Exception as e:
     print(f"Initialization Error: {e}")
