@@ -6,3 +6,4 @@ sounddevice
 numpy
 python-dotenv
 pyaudio
+scipy
