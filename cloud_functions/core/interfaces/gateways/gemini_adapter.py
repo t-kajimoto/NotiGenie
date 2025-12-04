@@ -1,9 +1,19 @@
 import os
 import json
 import asyncio
+import logging
+import sys
 import google.generativeai as genai
 from typing import Dict, Any
 from ...domain.interfaces import ILanguageModel
+
+# ロガーの設定
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
 
 
 class GeminiAdapter(ILanguageModel):
@@ -41,11 +51,10 @@ class GeminiAdapter(ILanguageModel):
         """
         return genai.GenerativeModel('gemini-2.0-flash-lite')
 
-    async def generate_notion_command(self, user_utterance: str, current_date: str) -> Dict[str, Any]:
+    def _build_command_prompt(self, user_utterance: str, current_date: str) -> str:
         """
-        ユーザーの発言からNotion操作コマンドを生成します。
+        コマンド生成用のシステムプロンプトを構築します。
         """
-        # プロンプトの構築: データベース情報を動的に埋め込みます
         database_descriptions = ""
         for db_name, db_info in self.notion_database_mapping.items():
             title = db_info.get('title', db_name)
@@ -65,13 +74,20 @@ class GeminiAdapter(ILanguageModel):
         full_prompt = self.command_prompt_template.replace("{database_descriptions}", database_descriptions)
         full_prompt = full_prompt.replace("{user_utterance}", user_utterance)
         full_prompt = full_prompt.replace("{current_date}", current_date)
+        return full_prompt
+
+    async def _generate_content_async(self, prompt: str) -> Dict[str, Any]:
+        """
+        Geminiにプロンプトを投げ、JSONレスポンスをパースして返します。
+        """
+        logger.info(f"Sending prompt to Gemini:\n{prompt}")
 
         try:
-            # 非同期でGemini APIを呼び出し
-            # ここで都度モデルを取得する
             model = self._get_model()
             # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行する
-            response = await asyncio.to_thread(model.generate_content, full_prompt)
+            response = await asyncio.to_thread(model.generate_content, prompt)
+
+            logger.info(f"Received response from Gemini:\n{response.text}")
 
             # JSONとしてパースするためのクリーニング処理
             # Geminiは時々Markdownのコードブロック(```json ... ```)を含めて返すため、それを除去します
@@ -80,14 +96,42 @@ class GeminiAdapter(ILanguageModel):
 
         except json.JSONDecodeError as e:
             # JSONパースエラーの場合
-            # response変数があるか確認（例外発生箇所による）
             raw_text = response.text if 'response' in locals() else "Unknown"
             error_message = f"JSON parse error: {e}. Raw response: {raw_text}"
+            logger.error(error_message)
             return {"action": "error", "message": error_message}
         except Exception as e:
             # その他のAPIエラーなど
             error_message = f"Gemini API error: {e}"
+            logger.error(error_message)
             return {"action": "error", "message": error_message}
+
+    async def generate_notion_command(self, user_utterance: str, current_date: str) -> Dict[str, Any]:
+        """
+        ユーザーの発言からNotion操作コマンドを生成します。
+        """
+        full_prompt = self._build_command_prompt(user_utterance, current_date)
+        return await self._generate_content_async(full_prompt)
+
+    async def fix_notion_command(self, user_utterance: str, current_date: str, previous_json: Dict[str, Any], error_message: str) -> Dict[str, Any]:
+        """
+        エラーが発生したNotion操作コマンドを修正します。
+        """
+        base_prompt = self._build_command_prompt(user_utterance, current_date)
+
+        # 修正指示を追加
+        fix_instruction = f"""
+
+### 修正指示:
+前回のJSON生成で以下のエラーが発生しました。
+エラーメッセージ: {error_message}
+前回生成したJSON: {json.dumps(previous_json, ensure_ascii=False)}
+
+上記のエラー原因を分析し、正しいJSONコマンドを再生成してください。
+特に、プロパティ名や値の型、必須フィールドが正しいか確認してください。
+"""
+        full_prompt = base_prompt + fix_instruction
+        return await self._generate_content_async(full_prompt)
 
     async def generate_final_response(self, user_utterance: str, tool_result: str) -> str:
         """
@@ -96,10 +140,16 @@ class GeminiAdapter(ILanguageModel):
         prompt = self.response_prompt_template.replace("{user_utterance}", user_utterance)
         prompt = prompt.replace("{tool_result}", tool_result)
 
+        logger.info(f"Sending final response prompt to Gemini:\n{prompt}")
+
         try:
             model = self._get_model()
             # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行する
             response = await asyncio.to_thread(model.generate_content, prompt)
+
+            logger.info(f"Received final response from Gemini:\n{response.text}")
+
             return response.text
         except Exception as e:
+            logger.error(f"Gemini API response generation error: {e}")
             return f"Gemini API response generation error: {e}"

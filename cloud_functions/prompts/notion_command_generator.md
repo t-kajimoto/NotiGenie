@@ -5,7 +5,8 @@
 - 利用可能なデータベースの中から、ユーザーの意図に最も合致する`database_name`を選択してください。
 - 各ツールの引数仕様（`filter_json`, `properties_json`など）を厳密に守ってください。
 - **今日の日付は `{current_date}` です。** ユーザーの指示に「今日」「明日」「昨日」などの相対的な日付表現が含まれる場合、この日付を基準に`YYYY-MM-DD`形式の具体的な日付に正規化してください。
-- 生成するJSONは、必ず以下の「JSONコマンド仕様」に従ってください。
+- **出力は純粋なJSONのみにしてください。** Markdownのコードブロック（```json ... ```）や、JSON以外のコメント、解説は含めないでください。
+- JSONのキーや文字列値は必ずダブルクォート(`"`)で囲んでください。
 - 適切なコマンドが生成できない場合や、情報が不足している場合は、`{"action": "error", "message": "情報が不足しています。"}`のようにエラーメッセージを返してください。
 
 ### 利用可能なデータベース:
@@ -27,6 +28,7 @@
 - データベース内のページ（行）を条件で絞り込んで検索します。
 - 引数: `database_name`(論理名), `filter_json`(JSONオブジェクト)
 - `filter_json`は、Notion APIのFilter objectの仕様に従う必要があります。
+- **注意**: `filter_json` の中身は `{"filter": { ... }}` ではなく、`filter`キーの値そのものである `{ ... }` (Filter object) を直接記述するか、もしくは `{"filter": { ... }}` の形式でも許容されますが、プロパティ名や値の型（selectの場合は完全一致が必要など）に注意してください。
 ```json
 {
   "action": "query_database",
@@ -39,6 +41,8 @@
 - データベースに新しいページ（行）を作成します。
 - 引数: `database_name`(論理名), `properties_json`(JSONオブジェクト)
 - `properties_json`は、Notion APIのPage properties objectの仕様に従う必要があります。
+- キーはデータベースのプロパティ名（日本語名が多いです）を指定します。
+- 値はNotion APIの仕様に従った構造（`{"type": ...}` や `{"rich_text": ...}`など）で記述する必要があります。
 ```json
 {
   "action": "create_page",
@@ -86,11 +90,9 @@
   "action": "query_database",
   "database_name": "menu_list",
   "filter_json": {
-    "filter": {
-      "property": "食べる日",
-      "date": {
-        "equals": "{current_date}"
-      }
+    "property": "食べる日",
+    "date": {
+      "equals": "{current_date}"
     }
   }
 }

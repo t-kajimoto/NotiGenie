@@ -41,22 +41,52 @@ class ProcessMessageUseCase:
         try:
             # 1. 意図解析 (Intent Analysis)
             # LLMを使用して、自然言語を構造化データ(JSON)に変換します。
-            # awaitキーワードは、非同期処理（結果が返ってくるまで待機する処理）を表します。
             command = await self.language_model.generate_notion_command(user_utterance, current_date)
 
-            # 2. ツール実行 (Execute Tool)
+            # 2. ツール実行 (Execute Tool) とリトライ処理
             # 解析されたコマンドに基づいて、実際に外部システム(Notion)を操作します。
-            if command.get("action") == "error":
-                # 生成段階でエラーがあった場合
-                tool_result = command.get("message", "Unknown error")
-            else:
-                action = command.get("action")
-                # アクション以外のすべてのキーを引数として渡します
-                args = {k: v for k, v in command.items() if k != "action"}
+            # エラーが発生した場合は、Geminiに修正を依頼してリトライします（最大2回）。
 
-                # 同期メソッドとして定義されている場合でも、必要に応じて非同期ラッパー内で実行することがあります。
-                # 現状のNotionHandlerは同期的なのでそのまま呼び出します。
-                tool_result = self.notion_repository.execute_tool(action, args)
+            max_retries = 2
+            tool_result = None
+
+            for attempt in range(max_retries + 1):
+                # エラー生成されていた場合は即座に結果とする（リトライしても意味がないため、あるいはGemini側の判断エラー）
+                # ただし、JSONパースエラーなどの場合は fix_notion_command で直せる可能性もあるが、
+                # 現状のGeminiAdapterは {"action": "error"} を返す実装なので、ここではループを抜ける。
+                if command.get("action") == "error":
+                    tool_result = command.get("message", "Unknown error")
+                    break
+
+                try:
+                    action = command.get("action")
+                    # アクション以外のすべてのキーを引数として渡します
+                    args = {k: v for k, v in command.items() if k != "action"}
+
+                    # 同期メソッドとして定義されている場合でも、必要に応じて非同期ラッパー内で実行することがあります。
+                    # 現状のNotionHandlerは同期的なのでそのまま呼び出します。
+                    tool_result = self.notion_repository.execute_tool(action, args)
+
+                    # 成功したらループを抜ける
+                    break
+
+                except Exception as e:
+                    # エラーが発生した場合
+                    error_message = str(e)
+                    print(f"Tool execution failed (Attempt {attempt + 1}/{max_retries + 1}): {error_message}")
+
+                    if attempt < max_retries:
+                        # リトライ可能な場合は、Geminiに修正を依頼
+                        print("Requesting JSON fix from Gemini...")
+                        command = await self.language_model.fix_notion_command(
+                            user_utterance,
+                            current_date,
+                            command,
+                            error_message
+                        )
+                    else:
+                        # リトライ回数上限に達した場合は、エラーメッセージを結果とする
+                        tool_result = f"Error: Failed to execute command after {max_retries + 1} attempts. Last error: {error_message}"
 
             # 3. 最終応答生成 (Generate Final Response)
             # ツールの実行結果をユーザーに分かりやすい言葉で伝えます。
