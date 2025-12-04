@@ -27,7 +27,8 @@ class GeminiAdapter(ILanguageModel):
         # Geminiライブラリの設定
         genai.configure(api_key=api_key)
         # モデルの指定（軽量で高速なflashモデルを使用）
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # gemini-1.5-flash はv1beta APIで認識されない場合があるため、latestエイリアスを使用
+        self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
         self.command_prompt_template = command_prompt_template
         self.response_prompt_template = response_prompt_template
