@@ -129,7 +129,14 @@ class NotionAdapter(INotionRepository):
 
         logger.info(f"Querying database_id={database_id} with params={query_kwargs}")
 
-        response = self.client.databases.query(database_id=database_id, **query_kwargs)
+        # notion-client 2.7.0でDatabasesEndpointからqueryメソッドが消失している可能性があるため、
+        # 直接requestメソッドを使用してAPIを呼び出す形に修正
+        # response = self.client.databases.query(database_id=database_id, **query_kwargs)
+        response = self.client.request(
+            path=f"databases/{database_id}/query",
+            method="POST",
+            body=query_kwargs
+        )
         return response
 
     def _create_page(self, args: Dict[str, Any]) -> Any:
