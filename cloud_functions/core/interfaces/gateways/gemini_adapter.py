@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import google.generativeai as genai
 from typing import Dict, Any
 from ...domain.interfaces import ILanguageModel
@@ -69,7 +70,8 @@ class GeminiAdapter(ILanguageModel):
             # 非同期でGemini APIを呼び出し
             # ここで都度モデルを取得する
             model = self._get_model()
-            response = await model.generate_content_async(full_prompt)
+            # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行する
+            response = await asyncio.to_thread(model.generate_content, full_prompt)
 
             # JSONとしてパースするためのクリーニング処理
             # Geminiは時々Markdownのコードブロック(```json ... ```)を含めて返すため、それを除去します
@@ -96,7 +98,8 @@ class GeminiAdapter(ILanguageModel):
 
         try:
             model = self._get_model()
-            response = await model.generate_content_async(prompt)
+            # 'Event loop is closed' エラー回避のため、同期メソッドをスレッドで実行する
+            response = await asyncio.to_thread(model.generate_content, prompt)
             return response.text
         except Exception as e:
             return f"Gemini API response generation error: {e}"
