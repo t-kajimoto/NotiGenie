@@ -79,11 +79,11 @@ class NotionAdapter(INotionRepository):
         except APIResponseError as e:
             logger.error(f"Notion API Error: {e.code} - {str(e)}")
             logger.error(traceback.format_exc())
-            return json.dumps({"error": f"Notion APIエラー: {str(e)}", "code": e.code})
+            raise
         except Exception as e:
             logger.error(f"Unexpected Error in NotionAdapter: {str(e)}")
             logger.error(traceback.format_exc())
-            return json.dumps({"error": f"予期せぬエラー: {str(e)}"})
+            raise
 
     def _resolve_database_id(self, database_name: str) -> Optional[str]:
         """データベース名からIDを解決します。"""
