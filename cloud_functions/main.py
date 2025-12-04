@@ -1,10 +1,11 @@
 import functions_framework
-from flask import Request
+from flask import Request, abort
 import os
 import json
 import yaml
 import asyncio
 from typing import Tuple
+from linebot.v3.exceptions import InvalidSignatureError
 
 # Clean Architecture Components
 # coreパッケージから必要なコンポーネントをインポートします
@@ -109,6 +110,8 @@ def main(request: Request):
         try:
             line_controller.handle_request(body, signature)
             return "OK"
+        except InvalidSignatureError:
+            abort(400)
         except Exception as e:
             print(f"LINE Webhook Error: {e}")
             return f"Error: {e}", 500
