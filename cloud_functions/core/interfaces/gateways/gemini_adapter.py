@@ -25,13 +25,20 @@ class GeminiAdapter(ILanguageModel):
             raise ValueError("GEMINI_API_KEY environment variable is not set")
 
         # Geminiライブラリの設定
+        # Note: genai.configure sets the API key globally.
         genai.configure(api_key=api_key)
-        # モデルの指定（軽量で高速なflashモデルを使用）
-        self.model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
         self.command_prompt_template = command_prompt_template
         self.response_prompt_template = response_prompt_template
         self.notion_database_mapping = notion_database_mapping
+
+    def _get_model(self):
+        """
+        GenerativeModelのインスタンスを生成して返します。
+        'Event loop is closed' エラーを防ぐため、リクエストごとに（メソッド呼び出し時に）
+        インスタンス化することを推奨します。
+        """
+        return genai.GenerativeModel('gemini-2.0-flash-lite')
 
     async def generate_notion_command(self, user_utterance: str, current_date: str) -> Dict[str, Any]:
         """
@@ -60,7 +67,9 @@ class GeminiAdapter(ILanguageModel):
 
         try:
             # 非同期でGemini APIを呼び出し
-            response = await self.model.generate_content_async(full_prompt)
+            # ここで都度モデルを取得する
+            model = self._get_model()
+            response = await model.generate_content_async(full_prompt)
 
             # JSONとしてパースするためのクリーニング処理
             # Geminiは時々Markdownのコードブロック(```json ... ```)を含めて返すため、それを除去します
@@ -69,7 +78,9 @@ class GeminiAdapter(ILanguageModel):
 
         except json.JSONDecodeError as e:
             # JSONパースエラーの場合
-            error_message = f"JSON parse error: {e}. Raw response: {response.text}"
+            # response変数があるか確認（例外発生箇所による）
+            raw_text = response.text if 'response' in locals() else "Unknown"
+            error_message = f"JSON parse error: {e}. Raw response: {raw_text}"
             return {"action": "error", "message": error_message}
         except Exception as e:
             # その他のAPIエラーなど
@@ -84,7 +95,8 @@ class GeminiAdapter(ILanguageModel):
         prompt = prompt.replace("{tool_result}", tool_result)
 
         try:
-            response = await self.model.generate_content_async(prompt)
+            model = self._get_model()
+            response = await model.generate_content_async(prompt)
             return response.text
         except Exception as e:
             return f"Gemini API response generation error: {e}"
