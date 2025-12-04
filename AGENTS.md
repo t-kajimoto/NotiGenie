@@ -46,6 +46,28 @@ pytest tests/
 
 ### 開発ガイドライン
 
-*   **Cloud Functions**: `main.py` がエントリーポイントです。`gemini_agent.py` と `notion_handler.py` にロジックを集約します。
+*   **Cloud Functions**: `main.py` がエントリーポイントです。アーキテクチャの詳細は後述の「コード品質とアーキテクチャ」セクションを参照してください。
 *   **Raspberry Pi**: ハードウェア依存（マイク、スピーカー）が強いため、ロジック変更時はモックテストを活用してください。
 *   **言語**: プラン提示やコミットメッセージは日本語を使用してください。
+
+## コード品質とアーキテクチャ (Code Quality & Architecture)
+
+### 1. クリーンアーキテクチャ (Clean Architecture)
+本プロジェクトの `cloud_functions/` は、クリーンアーキテクチャの原則に基づいて構成されています。
+変更を加える際は、以下のレイヤー構成を維持してください。
+
+*   **Core (Domain & Use Cases)**:
+    *   `core/domain`: 外部に依存しない純粋なインターフェース定義（Entities/Interfaces）。
+    *   `core/use_cases`: ビジネスロジック（アプリケーションの振る舞い）。
+*   **Infrastructure (Adapters & Drivers)**:
+    *   `core/interfaces/gateways`: 外部サービス（Gemini, Notion）へのアダプター実装。
+    *   `core/interfaces/controllers`: 入力（LINE, HTTP）をユースケースに変換するコントローラー。
+    *   `main.py`: エントリーポイント。Dependency Injectionを行い、レイヤーを結合します。
+
+### 2. コメント (Comments)
+初学者でも理解できるように、コードには以下のコメントを充実させてください。
+*   **Docstrings**: クラスやメソッドの役割、引数、戻り値を明確に記述する。
+*   **Inline Comments**: 「なぜそうするのか（Why）」、「何をしているのか（What）」を丁寧に説明する。特にアーキテクチャ上の意図（DI、Interfaceなど）や非同期処理については詳しく記述する。
+
+### 3. Linter
+コードの品質を保つため、`flake8` を使用して構文チェックを行ってください。
