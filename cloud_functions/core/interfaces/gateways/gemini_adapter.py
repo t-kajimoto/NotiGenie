@@ -3,6 +3,7 @@ import json
 import asyncio
 import logging
 import sys
+import functools
 import google.generativeai as genai
 from typing import Dict, Any, List, Callable
 from ...domain.interfaces import ILanguageModel
@@ -61,13 +62,51 @@ class GeminiAdapter(ILanguageModel):
         instruction = instruction.replace("{current_date}", current_date)
         return instruction
 
+    def _sanitize_arg(self, arg: Any) -> Any:
+        """
+        Protobufの型（MapComposite, RepeatedComposite）をPythonの標準型に変換します。
+        """
+        # 型名での判定（importせずに済むように）
+        type_name = type(arg).__name__
+
+        # MapCompositeはdictに変換
+        if type_name == 'MapComposite':
+            return {k: self._sanitize_arg(v) for k, v in arg.items()}
+        # RepeatedCompositeはlistに変換
+        elif type_name == 'RepeatedComposite':
+            return [self._sanitize_arg(v) for v in arg]
+        # 辞書の場合は再帰的に処理
+        elif isinstance(arg, dict):
+            return {k: self._sanitize_arg(v) for k, v in arg.items()}
+        # リストの場合も再帰的に処理
+        elif isinstance(arg, list):
+            return [self._sanitize_arg(v) for v in arg]
+
+        return arg
+
+    def _wrap_tool(self, tool: Callable) -> Callable:
+        """
+        ツールの引数をサニタイズするラッパー関数を作成します。
+        """
+        @functools.wraps(tool)
+        def wrapper(*args, **kwargs):
+            sanitized_args = [self._sanitize_arg(arg) for arg in args]
+            sanitized_kwargs = {k: self._sanitize_arg(v) for k, v in kwargs.items()}
+            logger.debug(f"Calling tool {tool.__name__} with sanitized args: {sanitized_args}, kwargs: {sanitized_kwargs}")
+            return tool(*sanitized_args, **sanitized_kwargs)
+
+        return wrapper
+
     def _get_model(self, tools: List[Callable], system_instruction: str):
         """
         GenerativeModelのインスタンスを生成して返します。
         """
+        # ツール関数をラップして引数をサニタイズするようにする
+        wrapped_tools = [self._wrap_tool(t) for t in tools]
+
         return genai.GenerativeModel(
             model_name='gemini-2.0-flash-lite',
-            tools=tools,
+            tools=wrapped_tools,
             system_instruction=system_instruction
         )
 
