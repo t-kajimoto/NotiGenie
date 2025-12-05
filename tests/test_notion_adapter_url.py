@@ -26,14 +26,39 @@ class TestNotionAdapterURL:
         }
         adapter = NotionAdapter(notion_database_mapping=mapping)
         adapter.client = MagicMock()
+        # Ensure 'databases' is also a MagicMock so we can check calls to it
+        adapter.client.databases = MagicMock()
         return adapter
 
     def test_search_database_valid_uuid_formatting(self, adapter):
         # Even if stored as hex string without dashes, it should be formatted with dashes in the URL
+        # NOTE: This test verifies the UUID normalization logic.
+
         query = "test"
         adapter.search_database(query, "test_db")
 
         expected_uuid = str(uuid.UUID("1ff1ac9c8c708098bf4ac641178c9b8d")) # This will have dashes
+
+        # Check if the code used the modern databases.query method (which it should by default if mocked)
+        if hasattr(adapter.client.databases, 'query'):
+            adapter.client.databases.query.assert_called_once()
+            call_kwargs = adapter.client.databases.query.call_args[1]
+            assert call_kwargs["database_id"] == expected_uuid
+        else:
+            # Fallback for legacy
+            expected_path = f"databases/{expected_uuid}/query"
+            adapter.client.request.assert_called_once()
+            call_args = adapter.client.request.call_args[1]
+            assert call_args["path"] == expected_path
+
+    def test_search_database_valid_uuid_formatting_legacy(self, adapter):
+        # Explicitly test the legacy path by removing the query method from the mock
+        del adapter.client.databases.query
+
+        query = "test"
+        adapter.search_database(query, "test_db")
+
+        expected_uuid = str(uuid.UUID("1ff1ac9c8c708098bf4ac641178c9b8d"))
         expected_path = f"databases/{expected_uuid}/query"
 
         adapter.client.request.assert_called_once()
@@ -46,6 +71,7 @@ class TestNotionAdapterURL:
         result = adapter.search_database(query, "bad_db")
 
         adapter.client.request.assert_not_called()
+        adapter.client.databases.query.assert_not_called()
         res_json = json.loads(result)
         assert "error" in res_json
         assert "Invalid Database ID" in res_json["error"]
@@ -56,6 +82,7 @@ class TestNotionAdapterURL:
         result = adapter.search_database(query, "empty_db")
 
         adapter.client.request.assert_not_called()
+        adapter.client.databases.query.assert_not_called()
         res_json = json.loads(result)
         # Depending on _resolve_database_id implementation, it returns None if empty string
         # If it returned None, "not found in configuration" error.

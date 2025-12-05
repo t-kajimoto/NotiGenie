@@ -129,15 +129,24 @@ class NotionAdapter(INotionRepository):
                         }
                     }
 
-                # 2.7.0 workaround
-                # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
-                request_path = f"databases/{database_id}/query"
-                logger.info(f"Executing Notion API request. Path: {request_path}")
-                response = self.client.request(
-                    path=request_path,
-                    method="POST",
-                    body=payload
-                )
+                # Try using the official method if available (future proofing)
+                if hasattr(self.client.databases, "query"):
+                    logger.info("Using client.databases.query method.")
+                    response = self.client.databases.query(
+                        database_id=database_id,
+                        **payload
+                    )
+                else:
+                    # 2.7.0 workaround
+                    # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
+                    request_path = f"databases/{database_id}/query"
+                    logger.info(f"Executing Notion API request. Path: {request_path}")
+
+                    response = self.client.request(
+                        path=request_path,
+                        method="POST",
+                        body=payload
+                    )
             else:
                 # 全体検索 (search endpoint)
                 search_params = {"query": query} if query else {}
