@@ -90,6 +90,21 @@ class NotionAdapter(INotionRepository):
 
         return None
 
+    def _normalize_uuid(self, id_str: str) -> str:
+        """
+        ハイフンが含まれていたりいなかったりするUUID文字列を、
+        ハイフン付きの正規化されたUUID文字列（8-4-4-4-12形式）に変換します。
+        変換できない場合は元の文字列を返します（API側でエラーにさせるため）。
+        """
+        if not id_str:
+            return id_str
+        try:
+            # ハイフンを除去してからUUIDオブジェクト化し、文字列に戻すことで正規化
+            return str(uuid.UUID(id_str.replace("-", "")))
+        except ValueError:
+            logger.warning(f"Failed to normalize UUID: {id_str}")
+            return id_str
+
     def _resolve_property_type(self, database_name: str, property_name: str) -> Optional[str]:
         """
         指定されたデータベースのプロパティの型（'checkbox', 'select' 等）を取得します。
@@ -447,6 +462,8 @@ class NotionAdapter(INotionRepository):
         """
         既存のページを更新します。ステータス変更などで使用されます。
         """
+        # IDの正規化（ハイフン補完など）
+        page_id = self._normalize_uuid(page_id)
         logger.info(f"Updating page. ID: {page_id}")
 
         if not self.client:
@@ -506,6 +523,8 @@ class NotionAdapter(INotionRepository):
         ページやブロックの下に、新しいブロック（子要素）を追加します。
         買い物リストの詳細などを追記する際に使用されます。
         """
+        # IDの正規化
+        block_id = self._normalize_uuid(block_id)
         logger.info(f"Appending block. ID: {block_id}")
 
         if not self.client:
