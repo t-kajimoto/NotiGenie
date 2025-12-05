@@ -6,3 +6,4 @@ notion-client
 requests
 PyYAML
 asgiref
+google-cloud-firestore

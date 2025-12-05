@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # 実際の実行フローでは、ここでインポートしたクラスを組み合わせて処理を行います。
 from core.interfaces.gateways.gemini_adapter import GeminiAdapter
 from core.interfaces.gateways.notion_adapter import NotionAdapter
+from core.interfaces.gateways.firestore_adapter import FirestoreAdapter
 from core.interfaces.controllers.line_controller import LineController
 from core.use_cases.process_message import ProcessMessageUseCase
 
@@ -91,11 +92,13 @@ try:
     # 1. ゲートウェイ（外部サービスへのアダプター）の初期化
     #    GeminiAdapter: AIモデルとの対話を担当
     #    NotionAdapter: Notion APIとの通信を担当
+    #    FirestoreAdapter: セッション履歴の管理を担当
     gemini_adapter = GeminiAdapter(
         system_instruction_template=system_instruction,
         notion_database_mapping=db_mapping
     )
     notion_adapter = NotionAdapter(notion_database_mapping=db_mapping)
+    firestore_adapter = FirestoreAdapter()
 
     # ---------------------------------------------------------
     # Notion API 接続確認 (Startup Verification)
@@ -112,7 +115,8 @@ try:
     #    ビジネスロジックを担当するクラスに、具体的な外部アダプターを渡します（依存性の注入）。
     process_message_use_case = ProcessMessageUseCase(
         language_model=gemini_adapter,
-        notion_repository=notion_adapter
+        notion_repository=notion_adapter,
+        session_repository=firestore_adapter
     )
 
     # 3. コントローラーの初期化
@@ -180,11 +184,13 @@ async def main_logic(request: Request):
     if request_json and "text" in request_json:
         user_utterance = request_json["text"]
         current_date = request_json.get("date", "")
+        # Raspberry PiなどはセッションIDを持たせるか、デフォルトにするか
+        session_id = request_json.get("session_id", "default_api_session")
         logger.info(f"Received API request: {user_utterance}")
 
         try:
             # ユースケースを直接実行して結果を取得
-            response_text = await process_message_use_case.execute(user_utterance, current_date)
+            response_text = await process_message_use_case.execute(user_utterance, current_date, session_id=session_id)
             # JSON形式で応答を返す
             return json.dumps({"response": response_text}, ensure_ascii=False)
         except Exception as e:
