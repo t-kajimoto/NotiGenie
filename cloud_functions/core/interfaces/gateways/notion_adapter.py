@@ -104,6 +104,80 @@ class NotionAdapter(INotionRepository):
             return prop_config.get("type")
         return None
 
+    def _format_properties_for_api(self, database_name: str, properties: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        モデルから渡されたシンプルなプロパティ辞書をNotion API形式に変換します。
+        既にNotion形式になっている場合はそのまま維持します。
+        """
+        formatted_props = {}
+        for prop_name, value in properties.items():
+            prop_type = self._resolve_property_type(database_name, prop_name)
+
+            # すでに辞書型で、Notion形式っぽい構造（'select', 'date' 等のキーがある）ならそのまま
+            # ただし、単純な辞書（例: {"start": "..."}）の場合もあるので、キー名で簡易判定
+            if isinstance(value, dict) and prop_type in value:
+                formatted_props[prop_name] = value
+                continue
+
+            # 以下、型ごとの変換処理
+            if prop_type == "title":
+                # タイトルは別途処理されることが多いが、念のため
+                 if isinstance(value, str):
+                    formatted_props[prop_name] = {"title": [{"text": {"content": value}}]}
+                 else:
+                     formatted_props[prop_name] = value
+
+            elif prop_type == "select":
+                if isinstance(value, str):
+                    formatted_props[prop_name] = {"select": {"name": value}}
+                else:
+                    formatted_props[prop_name] = value
+
+            elif prop_type == "multi_select":
+                if isinstance(value, list):
+                    formatted_props[prop_name] = {"multi_select": [{"name": v} for v in value]}
+                elif isinstance(value, str):
+                     formatted_props[prop_name] = {"multi_select": [{"name": value}]}
+                else:
+                    formatted_props[prop_name] = value
+
+            elif prop_type == "date":
+                if isinstance(value, str):
+                    formatted_props[prop_name] = {"date": {"start": value}}
+                else:
+                    formatted_props[prop_name] = value
+
+            elif prop_type == "checkbox":
+                formatted_props[prop_name] = {"checkbox": bool(value)}
+
+            elif prop_type == "rich_text":
+                if isinstance(value, str):
+                    formatted_props[prop_name] = {"rich_text": [{"text": {"content": value}}]}
+                else:
+                    formatted_props[prop_name] = value
+
+            elif prop_type == "number":
+                 try:
+                     formatted_props[prop_name] = {"number": float(value)}
+                 except:
+                     formatted_props[prop_name] = value
+
+            elif prop_type == "url":
+                formatted_props[prop_name] = {"url": value}
+
+            elif prop_type == "status":
+                if isinstance(value, str):
+                    formatted_props[prop_name] = {"status": {"name": value}}
+                else:
+                     formatted_props[prop_name] = value
+
+            else:
+                # 不明な型はそのまま渡す（API側でエラーになるかもしれないが、勝手な変換は避ける）
+                formatted_props[prop_name] = value
+
+        return formatted_props
+
+
     def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         データベースからページを検索します。AIが使用する主要なツールです。
@@ -340,8 +414,11 @@ class NotionAdapter(INotionRepository):
                      title_prop_name = k
                      break
 
-        # タイトル構造の構築
-        properties[title_prop_name] = {
+        # フォーマット変換 (Simple values -> Notion API Objects)
+        formatted_properties = self._format_properties_for_api(database_name, properties)
+
+        # タイトルが properties に含まれていても、引数の title を優先して上書きする
+        formatted_properties[title_prop_name] = {
             "title": [
                 {
                     "text": {
@@ -354,7 +431,7 @@ class NotionAdapter(INotionRepository):
         try:
             response = self.client.pages.create(
                 parent={"database_id": database_id},
-                properties=properties
+                properties=formatted_properties
             )
             return {"status": "success", "id": response.get("id"), "url": response.get("url")}
         except APIResponseError as e:
@@ -375,10 +452,44 @@ class NotionAdapter(INotionRepository):
         if not self.client:
             return {"error": "Notion Client not initialized"}
 
+        # 更新対象のデータベースを知る術がない (page_idからは分からない) ため、
+        # propertiesのキーからデータベースを推測するか、あるいは全DBを走査する...のはコストが高い。
+        # ここでは、propertiesに含まれるキー名と全DBのスキーマを比較して、マッチするプロパティ型の解決を試みる。
+        # ただし、同じプロパティ名が複数のDBにある場合（例: "完了フラグ"）は最初に見つかった型を使う。
+        # これは完全ではないが、多くのケースで動作する。
+        # より良い方法は、update_pageにもdatabase_name引数を追加することだが、
+        # 既存インターフェースを変えるリスクがあるため、まずは簡易的な解決策をとる。
+
+        # 1. propertiesのフォーマット変換
+        # page_idからdatabase_idを取得するのはAPIコールが必要だが、retrieveしてからupdateするのは2度手間。
+        # しかし、型解決にはスキーマが必要。
+        # ここでは「全ての既知のDB定義からプロパティ名を探す」戦略をとる。
+
+        formatted_properties = {}
+        for prop_name, value in properties.items():
+            prop_type = None
+            found_db = None
+
+            # プロパティ名から型を検索
+            for db_name, db_info in self.notion_database_mapping.items():
+                p_conf = db_info.get("properties", {}).get(prop_name)
+                if p_conf:
+                    prop_type = p_conf.get("type")
+                    found_db = db_name
+                    break
+
+            if found_db:
+                # 1つだけの辞書を作って変換メソッドを通す
+                temp_dict = self._format_properties_for_api(found_db, {prop_name: value})
+                formatted_properties.update(temp_dict)
+            else:
+                # 見つからない場合はそのまま
+                formatted_properties[prop_name] = value
+
         try:
             response = self.client.pages.update(
                 page_id=page_id,
-                properties=properties
+                properties=formatted_properties
             )
             return {"status": "success", "id": response.get("id")}
         except APIResponseError as e:
