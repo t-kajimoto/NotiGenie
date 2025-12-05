@@ -34,6 +34,7 @@
      - `Cloud Functions Developer` (`roles/cloudfunctions.developer`)
      - `Service Account User` (`roles/iam.serviceAccountUser`)
      - `Cloud Run Admin` (`roles/run.admin`) ※Gen 2 で `--allow-unauthenticated` を使用するために必要
+     - `Cloud Datastore User` (`roles/datastore.user`) ※会話履歴のFirestore保存に必要
    - サービスアカウントのJSONキーをダウンロードし、GitHub Secretsの `GCP_SA_KEY` に登録します。
 
 2. **その他のSecrets登録**:
