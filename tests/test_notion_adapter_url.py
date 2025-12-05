@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 import json
 import uuid
-from cloud_functions.core.interfaces.gateways.notion_adapter import NotionAdapter
+from cloud_functions.infrastructure.gateways.notion_adapter import NotionAdapter
 
 class TestNotionAdapterURL:
 

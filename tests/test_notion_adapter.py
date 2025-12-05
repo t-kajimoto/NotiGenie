@@ -4,7 +4,7 @@ import json
 import os
 import uuid
 from notion_client import APIResponseError
-from cloud_functions.core.interfaces.gateways.notion_adapter import NotionAdapter
+from cloud_functions.infrastructure.gateways.notion_adapter import NotionAdapter
 
 # Constant UUID for testing
 TEST_DB_UUID = "12345678-1234-5678-1234-567812345678"
@@ -12,7 +12,7 @@ TEST_DB_UUID = "12345678-1234-5678-1234-567812345678"
 @pytest.fixture
 def mock_notion_client(mocker):
     # notion_client.Client をモック化
-    mock_client_cls = mocker.patch('cloud_functions.core.interfaces.gateways.notion_adapter.Client')
+    mock_client_cls = mocker.patch('cloud_functions.infrastructure.gateways.notion_adapter.Client')
     mock_instance = mock_client_cls.return_value
 
     # Ensure databases is a mock

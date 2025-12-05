@@ -6,7 +6,7 @@ import traceback
 import uuid
 from typing import Dict, Any, Union, Optional, List
 from notion_client import Client, APIResponseError
-from ...domain.interfaces import INotionRepository
+from core.domain.interfaces import INotionRepository
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
