@@ -89,6 +89,8 @@ class LineController:
         """
         user_utterance = event.message.text
         reply_token = event.reply_token
+        # LINE User IDを取得してセッションIDとして使用
+        user_id = event.source.user_id if hasattr(event.source, 'user_id') else "unknown_user"
 
         # JSTで現在日付を取得
         # なぜ必要か: Notionのタスク管理などで「今日のタスク」などを検索する際、
@@ -98,7 +100,7 @@ class LineController:
         try:
             # ユースケースの実行
             # ここでドメインロジック（AIによる判断とNotion操作）に委譲します
-            final_response_text = await self.use_case.execute(user_utterance, current_date)
+            final_response_text = await self.use_case.execute(user_utterance, current_date, session_id=user_id)
 
             # LINEへの応答送信
             # MessagingApiを使用して、リプライを返します
