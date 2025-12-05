@@ -1,0 +1,924 @@
+[
+  {
+    "insertId": "69324a35000b2396efc6c646",
+    "httpRequest": {
+      "requestMethod": "POST",
+      "requestUrl": "https://asia-northeast1-notigenie.cloudfunctions.net/notigenie-backend",
+      "requestSize": "1247",
+      "status": 200,
+      "responseSize": "130",
+      "userAgent": "LineBotWebhook/2.0",
+      "remoteIp": "147.92.149.170",
+      "serverIp": "216.239.36.54",
+      "latency": "3.532206241s",
+      "protocol": "HTTP/1.1"
+    },
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:54.196704Z",
+    "severity": "INFO",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Frequests",
+    "trace": "projects/notigenie/traces/4dd0bdfa75143fd6c0f430b8cfc39849",
+    "receiveTimestamp": "2025-12-05T02:57:57.735687866Z",
+    "spanId": "263ee3e4a3d006ca",
+    "traceSampled": true
+  },
+  {
+    "textPayload": "2025-12-05 02:57:54,689 - core.interfaces.gateways.gemini_adapter - INFO - Starting chat with tools. User Utterance: きのう何食べたっけ？",
+    "insertId": "69324a32000a8016116b860e",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:54.688150Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:54.693151215Z"
+  },
+  {
+    "textPayload": "Starting chat with tools. User Utterance: きのう何食べたっけ？",
+    "insertId": "69324a32000a8129575db663",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "location": "asia-northeast1"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:54.688425Z",
+    "labels": {
+      "execution_id": "6xh9grqNfJHv",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:55.026943106Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "textPayload": "2025-12-05 02:57:55,717 - core.interfaces.gateways.notion_adapter - INFO - Searching database. Query: 昨日, DB Name: menu_list",
+    "insertId": "69324a33000af0e80b7d3c53",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.717032Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z"
+  },
+  {
+    "textPayload": "Searching database. Query: 昨日, DB Name: menu_list",
+    "insertId": "69324a33000af19803dfec4d",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.717208Z",
+    "labels": {
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "execution_id": "6xh9grqNfJHv",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "textPayload": "2025-12-05 02:57:55,718 - core.interfaces.gateways.notion_adapter - INFO - Using client.request fallback. Path: databases/1ff1ac9c-8c70-8098-bf4a-c641178c9b8d/query",
+    "insertId": "69324a33000af29674bb74c1",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "project_id": "notigenie",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.717462Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z"
+  },
+  {
+    "textPayload": "Using client.request fallback. Path: databases/1ff1ac9c-8c70-8098-bf4a-c641178c9b8d/query",
+    "insertId": "69324a33000af2f5e241f16f",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "notigenie",
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.717557Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-managed-by": "cloudfunctions",
+      "execution_id": "6xh9grqNfJHv",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "textPayload": "2025-12-05 02:57:55,718 - core.interfaces.gateways.notion_adapter - INFO - POST https://api.notion.com/v1/databases/1ff1ac9c-8c70-8098-bf4a-c641178c9b8d/query",
+    "insertId": "69324a33000af411d33fdc8c",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.717841Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z"
+  },
+  {
+    "textPayload": "POST https://api.notion.com/v1/databases/1ff1ac9c-8c70-8098-bf4a-c641178c9b8d/query",
+    "insertId": "69324a33000af46e16fb78ec",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.717934Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "execution_id": "6xh9grqNfJHv",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "textPayload": "2025-12-05 02:57:55,719 - core.interfaces.gateways.notion_adapter - DEBUG - => None -- {'filter': {'property': '名前', 'title': {'contains': '昨日'}}} -- None",
+    "insertId": "69324a33000af4e73b966ac2",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "revision_name": "notigenie-backend-00027-tuz"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.718055Z",
+    "labels": {
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z"
+  },
+  {
+    "textPayload": "=> None -- {'filter': {'property': '名前', 'title': {'contains': '昨日'}}} -- None",
+    "insertId": "69324a33000af5412aa8d838",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:55.718145Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "execution_id": "6xh9grqNfJHv",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:56.024931033Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "textPayload": "2025-12-05 02:57:56,701 - core.interfaces.gateways.notion_adapter - DEBUG - => {'object': 'list', 'results': [], 'next_cursor': None, 'has_more': False, 'type': 'page_or_database', 'page_or_database': {}, 'request_id': '91c9a094-53b0-423a-8012-18df14ab7d0c'}",
+    "insertId": "69324a34000aae25ac0188a6",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "configuration_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "location": "asia-northeast1"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:56.699941Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:57.022420138Z"
+  },
+  {
+    "textPayload": "=> {'object': 'list', 'results': [], 'next_cursor': None, 'has_more': False, 'type': 'page_or_database', 'page_or_database': {}, 'request_id': '91c9a094-53b0-423a-8012-18df14ab7d0c'}",
+    "insertId": "69324a34000aaeebca7f0c35",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "project_id": "notigenie",
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:56.700139Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "execution_id": "6xh9grqNfJHv",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:57.022420138Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "textPayload": "2025-12-05 02:57:57,625 - core.interfaces.gateways.gemini_adapter - INFO - Received response from Gemini:",
+    "insertId": "69324a35000984f5b762d18b",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:57.623861Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:57.691497285Z"
+  },
+  {
+    "textPayload": "すみません、昨日の献立は見つかりませんでした。食べた日を記録し忘れましたか？",
+    "insertId": "69324a35000984ff1c62ee4e",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:57.623871Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:57.691497285Z"
+  },
+  {
+    "textPayload": "献立を記録していただければ、後から確認できます。",
+    "insertId": "69324a3500098504709c62d8",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:57.623876Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:57.691497285Z"
+  },
+  {
+    "textPayload": "Received response from Gemini:\nすみません、昨日の献立は見つかりませんでした。食べた日を記録し忘れましたか？\n献立を記録していただければ、後から確認できます。\n",
+    "insertId": "69324a350009858a7e13d460",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz"
+      }
+    },
+    "timestamp": "2025-12-05T02:57:57.624010Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "execution_id": "6xh9grqNfJHv",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:57:57.691497285Z",
+    "spanId": "2755890593137690314"
+  },
+  {
+    "insertId": "69324a47000e747708b4742c",
+    "httpRequest": {
+      "requestMethod": "POST",
+      "requestUrl": "https://asia-northeast1-notigenie.cloudfunctions.net/notigenie-backend",
+      "requestSize": "1277",
+      "status": 200,
+      "responseSize": "130",
+      "userAgent": "LineBotWebhook/2.0",
+      "remoteIp": "147.92.149.170",
+      "serverIp": "216.239.36.54",
+      "latency": "0.744838159s",
+      "protocol": "HTTP/1.1"
+    },
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "notigenie",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend",
+        "location": "asia-northeast1"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:15.201754Z",
+    "severity": "INFO",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Frequests",
+    "trace": "projects/notigenie/traces/43503e3570fb6c5bb5d73254a9414329",
+    "receiveTimestamp": "2025-12-05T02:58:15.952543823Z",
+    "spanId": "309be259fa076c06",
+    "traceSampled": true
+  },
+  {
+    "textPayload": "2025-12-05 02:58:15,212 - core.interfaces.gateways.gemini_adapter - INFO - Starting chat with tools. User Utterance: 食べる日決まってないものどれくらいある？",
+    "insertId": "69324a4700033a3ccac94f5f",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:15.211516Z",
+    "labels": {
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:15.213498230Z"
+  },
+  {
+    "textPayload": "Starting chat with tools. User Utterance: 食べる日決まってないものどれくらいある？",
+    "insertId": "69324a4700033ac3be537d16",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:15.211651Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "execution_id": "vE9XxvVj5Tm7",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:15.549377829Z",
+    "spanId": "3502642011285449734"
+  },
+  {
+    "textPayload": "2025-12-05 02:58:15,873 - core.interfaces.gateways.gemini_adapter - INFO - Received response from Gemini:",
+    "insertId": "69324a47000d531f8affb651",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "location": "asia-northeast1",
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:15.873247Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:15.884009791Z"
+  },
+  {
+    "textPayload": "どのデータベースの情報を知りたいですか？",
+    "insertId": "69324a47000d5328cbb3ee48",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:15.873256Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:15.884009791Z"
+  },
+  {
+    "textPayload": "Received response from Gemini:\nどのデータベースの情報を知りたいですか？",
+    "insertId": "69324a47000d53d1dd422bb6",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "configuration_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:15.873425Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "execution_id": "vE9XxvVj5Tm7",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:15.884009791Z",
+    "spanId": "3502642011285449734"
+  },
+  {
+    "insertId": "69324a580003265afafe30d8",
+    "httpRequest": {
+      "requestMethod": "POST",
+      "requestUrl": "https://asia-northeast1-notigenie.cloudfunctions.net/notigenie-backend",
+      "requestSize": "1237",
+      "status": 200,
+      "responseSize": "130",
+      "userAgent": "LineBotWebhook/2.0",
+      "remoteIp": "147.92.149.170",
+      "serverIp": "216.239.36.54",
+      "latency": "0.962205933s",
+      "protocol": "HTTP/1.1"
+    },
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:31.243294Z",
+    "severity": "INFO",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Frequests",
+    "trace": "projects/notigenie/traces/1e2e6c5184e841a1f358b5a3d6ec1c48",
+    "receiveTimestamp": "2025-12-05T02:58:32.212588530Z",
+    "spanId": "e578f0222c0ecc1c",
+    "traceSampled": true
+  },
+  {
+    "textPayload": "2025-12-05 02:58:31,253 - core.interfaces.gateways.gemini_adapter - INFO - Starting chat with tools. User Utterance: 献立が知りたい",
+    "insertId": "69324a570003dc4340f0951e",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:31.252995Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:31.259411748Z"
+  },
+  {
+    "textPayload": "Starting chat with tools. User Utterance: 献立が知りたい",
+    "insertId": "69324a570003dcc9642d5ca0",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:31.253129Z",
+    "labels": {
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "execution_id": "DYdkyD3PpiUu",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:31.589680504Z",
+    "spanId": "16535230061449497628"
+  },
+  {
+    "textPayload": "2025-12-05 02:58:32,137 - core.interfaces.gateways.gemini_adapter - INFO - Received response from Gemini:",
+    "insertId": "69324a580002177a8dad6bae",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:32.137082Z",
+    "labels": {
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:32.256598873Z"
+  },
+  {
+    "textPayload": "どのような献立を知りたいですか？献立リストから検索しますか？それとも、今日の献立を知りたいですか？",
+    "insertId": "69324a5800021786e5b94f45",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:32.137094Z",
+    "labels": {
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-managed-by": "cloudfunctions"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:32.256598873Z"
+  },
+  {
+    "textPayload": "Received response from Gemini:\nどのような献立を知りたいですか？献立リストから検索しますか？それとも、今日の献立を知りたいですか？",
+    "insertId": "69324a58000218142ac223d6",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:32.137236Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "execution_id": "DYdkyD3PpiUu",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:32.256598873Z",
+    "spanId": "16535230061449497628"
+  },
+  {
+    "insertId": "69324a660005aafb1640ddaa",
+    "httpRequest": {
+      "requestMethod": "POST",
+      "requestUrl": "https://asia-northeast1-notigenie.cloudfunctions.net/notigenie-backend",
+      "requestSize": "1270",
+      "status": 200,
+      "responseSize": "130",
+      "userAgent": "LineBotWebhook/2.0",
+      "remoteIp": "147.92.149.170",
+      "serverIp": "216.239.36.54",
+      "latency": "0.770748249s",
+      "protocol": "HTTP/1.1"
+    },
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:45.599633Z",
+    "severity": "INFO",
+    "labels": {
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "notigenie-backend"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Frequests",
+    "trace": "projects/notigenie/traces/de9e88240e812f5d633b3644df2f3f35",
+    "receiveTimestamp": "2025-12-05T02:58:46.377845110Z",
+    "spanId": "47ef654384610cbf",
+    "traceSampled": true
+  },
+  {
+    "textPayload": "2025-12-05 02:58:45,609 - core.interfaces.gateways.gemini_adapter - INFO - Starting chat with tools. User Utterance: 食べる日が決まってない献立が知りたい",
+    "insertId": "69324a6500094a73df59cdf4",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:45.608883Z",
+    "labels": {
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-managed-by": "cloudfunctions",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:45.616446157Z"
+  },
+  {
+    "textPayload": "Starting chat with tools. User Utterance: 食べる日が決まってない献立が知りたい",
+    "insertId": "69324a6500094af5d03407bf",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "project_id": "notigenie",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:45.609013Z",
+    "labels": {
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions",
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "execution_id": "A6fnZOaeOx53"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:45.947276801Z",
+    "spanId": "5183473036784897215"
+  },
+  {
+    "textPayload": "2025-12-05 02:58:46,298 - core.interfaces.gateways.gemini_adapter - INFO - Received response from Gemini:",
+    "insertId": "69324a6600048aff5ee83035",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:46.297727Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:46.611881365Z"
+  },
+  {
+    "textPayload": "どのデータベースの情報を知りたいですか？",
+    "insertId": "69324a6600048b09322b1235",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "configuration_name": "notigenie-backend",
+        "service_name": "notigenie-backend",
+        "project_id": "notigenie",
+        "location": "asia-northeast1",
+        "revision_name": "notigenie-backend-00027-tuz"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:46.297737Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-location": "asia-northeast1",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "goog-managed-by": "cloudfunctions",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:46.611881365Z"
+  },
+  {
+    "textPayload": "Received response from Gemini:\nどのデータベースの情報を知りたいですか？",
+    "insertId": "69324a6600048b9b7bd6a50d",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "project_id": "notigenie",
+        "service_name": "notigenie-backend",
+        "revision_name": "notigenie-backend-00027-tuz",
+        "location": "asia-northeast1",
+        "configuration_name": "notigenie-backend"
+      }
+    },
+    "timestamp": "2025-12-05T02:58:46.297883Z",
+    "labels": {
+      "run.googleapis.com/base_image_versions": "us-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/python311:python311_20251109_3_11_14_RC00",
+      "goog-drz-cloudfunctions-id": "notigenie-backend",
+      "instanceId": "0014778296bd4cbcbd5302f67a3faa1cb546582f446622bdbe3010f4e5e11af0ebb41f35fc2f19bc3a951262c388acd427477a087e94030f30151fe9140f86d84b9bfa02b6b89c7664fb302eff9e639795",
+      "goog-managed-by": "cloudfunctions",
+      "execution_id": "A6fnZOaeOx53",
+      "goog-drz-cloudfunctions-location": "asia-northeast1"
+    },
+    "logName": "projects/notigenie/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-12-05T02:58:46.611881365Z",
+    "spanId": "5183473036784897215"
+  }
+]
