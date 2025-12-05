@@ -8,7 +8,9 @@ from typing import Dict, Any, Optional, List, Union
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
 
-# ロガーの設定
+# ---------------------------------------------------------------------------
+# ロギング設定
+# ---------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 if not logger.handlers:
@@ -18,8 +20,11 @@ if not logger.handlers:
 
 class NotionAdapter(INotionRepository):
     """
-    Notion APIを使用したINotionRepositoryの実装。
-    Infrastructure層に位置し、外部APIとの通信詳細をカプセル化します。
+    Notion APIを使用したリポジトリ実装クラス。
+
+    Infrastructure層に位置し、外部API（Notion）との通信詳細をカプセル化します。
+    ここでは、AIが扱いやすい「データベース名（英語）」を実際の「Database ID（UUID）」に変換したり、
+    複雑なNotion APIのフィルタ条件（JSON構造）を組み立てる責務を持ちます。
     """
 
     def __init__(self, notion_database_mapping: Dict[str, Any]):
@@ -27,14 +32,16 @@ class NotionAdapter(INotionRepository):
         初期化処理。
 
         Args:
-            notion_database_mapping (dict): Notionデータベースの定義情報。
+            notion_database_mapping (dict): Notionデータベースの定義情報（schemas.yamlの中身）。
+                                          論理名とID、プロパティ定義のマッピングを持ちます。
         """
         self.notion_database_mapping = notion_database_mapping
         self.api_key = os.environ.get("NOTION_API_KEY")
 
         if self.api_key and self.api_key != "dummy":
-            # デバッグログを有効化し、loggerを渡すことでログを集約
-            # Notion-Versionを2022-06-28に固定（notion-client 2.7.0のデフォルトが新しいバージョンで互換性がないため）
+            # notion-client の初期化
+            # log_level=logging.DEBUG を設定して、リクエストの詳細をログに残せるようにします。
+            # notion_version="2022-06-28" を明示的に指定してAPIの互換性を保ちます。
             self.client = Client(
                 auth=self.api_key,
                 logger=logger,
@@ -49,7 +56,8 @@ class NotionAdapter(INotionRepository):
 
     def validate_connection(self) -> bool:
         """
-        Notion APIへの接続を検証します。
+        Notion APIへの接続テストを行います。
+        アプリ起動時にAPIキーが正しいか確認するために使用します。
         """
         if not self.client:
             logger.error("Validate Connection Failed: Client not initialized (No API Key)")
@@ -68,7 +76,9 @@ class NotionAdapter(INotionRepository):
             return False
 
     def _resolve_database_id(self, database_name: str) -> Optional[str]:
-        """データベース名からIDを解決します。"""
+        """
+        論理データベース名（例: 'todo_list'）から、実際のNotion Database ID（UUID）を取得します。
+        """
         if not database_name:
             return None
 
@@ -82,7 +92,8 @@ class NotionAdapter(INotionRepository):
 
     def _resolve_property_type(self, database_name: str, property_name: str) -> Optional[str]:
         """
-        指定されたデータベースのプロパティの型を解決します。
+        指定されたデータベースのプロパティの型（'checkbox', 'select' 等）を取得します。
+        フィルタ条件のJSONを構築する際に、型に応じた正しいクエリを作成するために必要です。
         """
         if not database_name or database_name not in self.notion_database_mapping:
             return None
@@ -95,19 +106,17 @@ class NotionAdapter(INotionRepository):
 
     def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
-        データベースからページを検索します。
+        データベースからページを検索します。AIが使用する主要なツールです。
 
         Args:
-            query (str, optional): 検索キーワード。タイトルに含まれる文字列を指定します。指定しない場合はフィルタ条件のみで検索します。
+            query (str, optional): タイトル検索キーワード。
             database_name (str, optional): 検索対象のデータベース名（英語のキー名）。
-                                         例: 'todo_list', 'menu_list', 'shopping_list'。
-                                         指定しない場合は全体検索を行いますが、精度が落ちるためデータベース名の指定を強く推奨します。
-            filter_conditions (str, optional): 絞り込み条件を指定するJSON形式の文字列。
-                                             例: '{"完了フラグ": false, "カテゴリ": "日用品"}'
-                                             値がboolの場合はcheckboxフィルタ、文字列の場合はselect/status/rich_textフィルタとして処理されます。
+            filter_conditions (str, optional): JSON形式の絞り込み条件。
+                例: '{"Status": "Done", "Category": "Work"}'
+                AIはこの引数にJSON文字列を渡すことで、プロパティに基づいたフィルタリングを行います。
 
         Returns:
-            List[Dict] | Dict: 検索結果のリスト、またはエラーを含む辞書。
+            List[Dict] | Dict: 検索結果の簡略化されたリスト、またはエラー情報。
         """
         logger.info(f"Searching database. Query: {query}, DB Name: {database_name}, Filter: {filter_conditions}")
 
@@ -123,23 +132,24 @@ class NotionAdapter(INotionRepository):
                      logger.warning(msg)
                      return {"error": msg}
 
-            # Validate UUID format if database_id is present
+            # Database IDの形式チェック（UUID形式）
             if database_id:
                 try:
-                    # Normalize UUID format (e.g. add hyphens if missing) to ensure valid URL
                     database_id = str(uuid.UUID(database_id))
                 except ValueError:
                     msg = f"Invalid Database ID format: {database_id}"
                     logger.error(msg)
                     return {"error": msg}
 
-                # 特定のDB内を検索 (databases.query)
+                # ---------------------------------------------------------
+                # 検索クエリ（Payload）の構築
+                # ---------------------------------------------------------
                 payload = {}
                 filters = []
 
-                # タイトル検索 (query引数がある場合)
+                # 1. タイトル部分一致検索 (query引数がある場合)
                 if query:
-                    # タイトルプロパティ名を特定
+                    # 'Name' や 'Title' など、実際のタイトルプロパティ名を特定
                     title_prop = "Name" # default
                     if database_name in self.notion_database_mapping:
                          props = self.notion_database_mapping[database_name].get("properties", {})
@@ -154,11 +164,12 @@ class NotionAdapter(INotionRepository):
                         }
                     })
 
-                # 追加のフィルタ条件 (filter_conditions引数がある場合)
+                # 2. プロパティによる絞り込み (filter_conditions引数がある場合)
                 if filter_conditions:
                     try:
                         conditions = json.loads(filter_conditions)
                         for prop, value in conditions.items():
+                            # プロパティの型を解決して、適切なNotion APIフィルタ構文を使用する
                             prop_type = self._resolve_property_type(database_name, prop)
 
                             if prop_type == "checkbox":
@@ -183,6 +194,7 @@ class NotionAdapter(INotionRepository):
                                     }
                                 })
                             elif prop_type == "date":
+                                # 日付は dict で詳細条件が来る場合と、値のみの場合を考慮
                                 if isinstance(value, dict):
                                      filters.append({
                                         "property": prop,
@@ -196,7 +208,7 @@ class NotionAdapter(INotionRepository):
                                         }
                                     })
                             else:
-                                # デフォルトは rich_text contains (または equals)
+                                # デフォルトは rich_text contains (文字列検索)
                                 if isinstance(value, str):
                                     filters.append({
                                         "property": prop,
@@ -209,12 +221,16 @@ class NotionAdapter(INotionRepository):
                     except Exception as e:
                         logger.error(f"Error building filter: {str(e)}")
 
+                # フィルタを合成（AND条件）
                 if len(filters) > 1:
                     payload["filter"] = {"and": filters}
                 elif len(filters) == 1:
                     payload["filter"] = filters[0]
 
-                # Try using the official method if available (future proofing)
+                # ---------------------------------------------------------
+                # APIリクエストの実行
+                # ---------------------------------------------------------
+                # ライブラリのバージョン差異による互換性対応
                 if hasattr(self.client.databases, "query"):
                     logger.info("Using client.databases.query method.")
                     response = self.client.databases.query(
@@ -222,7 +238,7 @@ class NotionAdapter(INotionRepository):
                         **payload
                     )
                 else:
-                    # 2.7.0 workaround: Use client.request to manually specify the path.
+                    # client.databases.query が存在しない古いバージョンや環境でのフォールバック
                     path = f"databases/{database_id}/query"
                     logger.info(f"Using client.request fallback. Path: {path}")
 
@@ -232,12 +248,16 @@ class NotionAdapter(INotionRepository):
                         body=payload
                     )
             else:
-                # 全体検索 (search endpoint)
+                # データベース指定なしの全体検索（search endpoint）
+                # 精度が低いため、基本的には database_name を指定することを推奨
                 search_params = {"query": query} if query else {}
                 search_params["filter"] = {"value": "page", "property": "object"}
                 response = self.client.search(**search_params)
 
-            # 結果を間引く
+            # ---------------------------------------------------------
+            # 結果の整形
+            # ---------------------------------------------------------
+            # APIの生レスポンスは巨大でネストが深いため、AIが理解しやすい形に簡略化します
             simplified_results = []
             for page in response.get("results", []):
                 simplified = {
@@ -287,13 +307,12 @@ class NotionAdapter(INotionRepository):
         データベースに新しいページを作成します。
 
         Args:
-            database_name (str): 作成先のデータベース名（英語のキー名）。例: 'todo_list'。
+            database_name (str): 作成先のデータベース名。
             title (str): ページのタイトル。
-            properties (dict, optional): その他のプロパティ。
-                                       キーはプロパティ名、値は設定する値（文字列、日付、選択肢など）。
+            properties (dict): その他のプロパティ設定値。
 
         Returns:
-            Dict[str, Any]: 作成されたページ情報の辞書。
+            Dict: 作成結果。
         """
         logger.info(f"Creating page. DB: {database_name}, Title: {title}")
 
@@ -304,7 +323,6 @@ class NotionAdapter(INotionRepository):
         if not database_id:
             return {"error": f"Database '{database_name}' not found."}
 
-        # Validate UUID
         try:
              database_id = str(uuid.UUID(database_id))
         except ValueError:
@@ -313,7 +331,7 @@ class NotionAdapter(INotionRepository):
         if properties is None:
             properties = {}
 
-        # タイトルプロパティの設定
+        # タイトルプロパティ名の解決と設定
         title_prop_name = "名前" # Default fallback
         if database_name in self.notion_database_mapping:
              props = self.notion_database_mapping[database_name].get("properties", {})
@@ -322,6 +340,7 @@ class NotionAdapter(INotionRepository):
                      title_prop_name = k
                      break
 
+        # タイトル構造の構築
         properties[title_prop_name] = {
             "title": [
                 {
@@ -349,14 +368,7 @@ class NotionAdapter(INotionRepository):
 
     def update_page(self, page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
         """
-        ページを更新します。
-
-        Args:
-            page_id (str): 更新対象のページのUUID。search_database等で取得したものを使用してください。
-            properties (dict): 更新するプロパティの内容。
-
-        Returns:
-            Dict[str, Any]: 更新結果の辞書。
+        既存のページを更新します。ステータス変更などで使用されます。
         """
         logger.info(f"Updating page. ID: {page_id}")
 
@@ -380,14 +392,8 @@ class NotionAdapter(INotionRepository):
 
     def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        ブロックに子ブロック（段落、ToDoなど）を追加します。
-
-        Args:
-            block_id (str): 親ブロックまたはページのUUID。
-            children (list): 追加するブロックのリスト。Notion APIのBlock Object形式に従ってください。
-
-        Returns:
-            Dict[str, Any]: 実行結果の辞書。
+        ページやブロックの下に、新しいブロック（子要素）を追加します。
+        買い物リストの詳細などを追記する際に使用されます。
         """
         logger.info(f"Appending block. ID: {block_id}")
 
