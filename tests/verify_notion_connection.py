@@ -30,7 +30,7 @@ def verify_connection():
         with open(schema_path, "r", encoding="utf-8") as f:
             schemas = yaml.safe_load(f)
 
-        client = Client(auth=api_key)
+        client = Client(auth=api_key, notion_version="2022-06-28")
 
         # 1. Test user/bot info (Authentication check)
         logger.info("Checking authentication (users.me)...")
@@ -53,6 +53,13 @@ def verify_connection():
             return False
 
         db_id = menu_db.get("id")
+        # Normalize UUID
+        import uuid
+        try:
+            db_id = str(uuid.UUID(db_id))
+        except ValueError:
+            pass # Keep as is if invalid
+
         logger.info(f"Checking access to 'menu_list' database (ID: {db_id})...")
 
         # Retrieve database metadata

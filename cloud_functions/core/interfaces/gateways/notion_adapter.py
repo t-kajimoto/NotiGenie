@@ -34,10 +34,12 @@ class NotionAdapter(INotionRepository):
 
         if self.api_key and self.api_key != "dummy":
             # デバッグログを有効化し、loggerを渡すことでログを集約
+            # Notion-Versionを2022-06-28に固定（notion-client 2.7.0のデフォルトが新しいバージョンで互換性がないため）
             self.client = Client(
                 auth=self.api_key,
                 logger=logger,
-                log_level=logging.DEBUG
+                log_level=logging.DEBUG,
+                notion_version="2022-06-28"
             )
             logger.info("Notion Client initialized successfully.")
         else:
