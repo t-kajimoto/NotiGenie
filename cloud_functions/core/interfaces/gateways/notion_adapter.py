@@ -4,7 +4,7 @@ import logging
 import sys
 import traceback
 import uuid
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
 
@@ -93,7 +93,7 @@ class NotionAdapter(INotionRepository):
             return prop_config.get("type")
         return None
 
-    def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> str:
+    def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         データベースからページを検索します。
 
@@ -107,12 +107,12 @@ class NotionAdapter(INotionRepository):
                                              値がboolの場合はcheckboxフィルタ、文字列の場合はselect/status/rich_textフィルタとして処理されます。
 
         Returns:
-            str: 検索結果のJSON文字列。
+            List[Dict] | Dict: 検索結果のリスト、またはエラーを含む辞書。
         """
         logger.info(f"Searching database. Query: {query}, DB Name: {database_name}, Filter: {filter_conditions}")
 
         if not self.client:
-            return json.dumps({"error": "Notion Client not initialized"})
+            return {"error": "Notion Client not initialized"}
 
         try:
             database_id = None
@@ -121,7 +121,7 @@ class NotionAdapter(INotionRepository):
                 if not database_id:
                      msg = f"Database '{database_name}' not found in configuration. Available keys: {list(self.notion_database_mapping.keys())}"
                      logger.warning(msg)
-                     return json.dumps({"error": msg})
+                     return {"error": msg}
 
             # Validate UUID format if database_id is present
             if database_id:
@@ -131,7 +131,7 @@ class NotionAdapter(INotionRepository):
                 except ValueError:
                     msg = f"Invalid Database ID format: {database_id}"
                     logger.error(msg)
-                    return json.dumps({"error": msg})
+                    return {"error": msg}
 
                 # 特定のDB内を検索 (databases.query)
                 payload = {}
@@ -197,12 +197,7 @@ class NotionAdapter(INotionRepository):
                                     })
                             else:
                                 # デフォルトは rich_text contains (または equals)
-                                # title プロパティへのフィルタもここで吸収される可能性があるが、
-                                # Notion API仕様では title プロパティには title フィルタを使うべき。
-                                # しかし prop_type が title と判明していれば title フィルタにする分岐を追加しても良い。
-                                # 一旦 rich_text でフォールバック。
                                 if isinstance(value, str):
-                                    # もしプロパティ型が不明でも、文字列なら部分一致検索を試みる
                                     filters.append({
                                         "property": prop,
                                         "rich_text": {
@@ -275,19 +270,19 @@ class NotionAdapter(INotionRepository):
                 simplified["properties"] = simple_props
                 simplified_results.append(simplified)
 
-            return json.dumps(simplified_results, ensure_ascii=False)
+            return simplified_results
 
         except APIResponseError as e:
             msg = f"Notion API Error in search: {e.code} - {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}
         except Exception as e:
             msg = f"Unexpected Error in search: {str(e)}"
             logger.error(msg)
             logger.error(traceback.format_exc())
-            return json.dumps({"error": msg})
+            return {"error": msg}
 
-    def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> str:
+    def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         データベースに新しいページを作成します。
 
@@ -298,22 +293,22 @@ class NotionAdapter(INotionRepository):
                                        キーはプロパティ名、値は設定する値（文字列、日付、選択肢など）。
 
         Returns:
-            str: 作成されたページ情報のJSON文字列。
+            Dict[str, Any]: 作成されたページ情報の辞書。
         """
         logger.info(f"Creating page. DB: {database_name}, Title: {title}")
 
         if not self.client:
-            return json.dumps({"error": "Notion Client not initialized"})
+            return {"error": "Notion Client not initialized"}
 
         database_id = self._resolve_database_id(database_name)
         if not database_id:
-            return json.dumps({"error": f"Database '{database_name}' not found."})
+            return {"error": f"Database '{database_name}' not found."}
 
         # Validate UUID
         try:
              database_id = str(uuid.UUID(database_id))
         except ValueError:
-            return json.dumps({"error": f"Invalid Database ID for {database_name}"})
+            return {"error": f"Invalid Database ID for {database_name}"}
 
         if properties is None:
             properties = {}
@@ -342,17 +337,17 @@ class NotionAdapter(INotionRepository):
                 parent={"database_id": database_id},
                 properties=properties
             )
-            return json.dumps({"status": "success", "id": response.get("id"), "url": response.get("url")})
+            return {"status": "success", "id": response.get("id"), "url": response.get("url")}
         except APIResponseError as e:
             msg = f"Notion API Error in create_page: {e.code} - {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}
         except Exception as e:
             msg = f"Unexpected Error in create_page: {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}
 
-    def update_page(self, page_id: str, properties: Dict[str, Any]) -> str:
+    def update_page(self, page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
         """
         ページを更新します。
 
@@ -361,29 +356,29 @@ class NotionAdapter(INotionRepository):
             properties (dict): 更新するプロパティの内容。
 
         Returns:
-            str: 更新結果のJSON文字列。
+            Dict[str, Any]: 更新結果の辞書。
         """
         logger.info(f"Updating page. ID: {page_id}")
 
         if not self.client:
-            return json.dumps({"error": "Notion Client not initialized"})
+            return {"error": "Notion Client not initialized"}
 
         try:
             response = self.client.pages.update(
                 page_id=page_id,
                 properties=properties
             )
-            return json.dumps({"status": "success", "id": response.get("id")})
+            return {"status": "success", "id": response.get("id")}
         except APIResponseError as e:
             msg = f"Notion API Error in update_page: {e.code} - {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}
         except Exception as e:
             msg = f"Unexpected Error in update_page: {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}
 
-    def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> str:
+    def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         ブロックに子ブロック（段落、ToDoなど）を追加します。
 
@@ -392,24 +387,24 @@ class NotionAdapter(INotionRepository):
             children (list): 追加するブロックのリスト。Notion APIのBlock Object形式に従ってください。
 
         Returns:
-            str: 実行結果のJSON文字列。
+            Dict[str, Any]: 実行結果の辞書。
         """
         logger.info(f"Appending block. ID: {block_id}")
 
         if not self.client:
-            return json.dumps({"error": "Notion Client not initialized"})
+            return {"error": "Notion Client not initialized"}
 
         try:
             response = self.client.blocks.children.append(
                 block_id=block_id,
                 children=children
             )
-            return json.dumps({"status": "success", "results_count": len(response.get("results", []))})
+            return {"status": "success", "results_count": len(response.get("results", []))}
         except APIResponseError as e:
             msg = f"Notion API Error in append_block: {e.code} - {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}
         except Exception as e:
             msg = f"Unexpected Error in append_block: {str(e)}"
             logger.error(msg)
-            return json.dumps({"error": msg})
+            return {"error": msg}

@@ -76,9 +76,11 @@ class TestNotionAdapterURL:
 
         adapter.client.request.assert_not_called()
         adapter.client.databases.query.assert_not_called()
-        res_json = json.loads(result)
-        assert "error" in res_json
-        assert "Invalid Database ID" in res_json["error"]
+
+        # Updated: Result is a dict, not a JSON string
+        assert isinstance(result, dict)
+        assert "error" in result
+        assert "Invalid Database ID" in result["error"]
 
     def test_search_database_empty_id(self, adapter):
         # Should return error and NOT call client.request
@@ -87,14 +89,11 @@ class TestNotionAdapterURL:
 
         adapter.client.request.assert_not_called()
         adapter.client.databases.query.assert_not_called()
-        res_json = json.loads(result)
-        # Depending on _resolve_database_id implementation, it returns None if empty string
-        # If it returned None, "not found in configuration" error.
-        # But _resolve_database_id was updated to strip and check.
-        # Let's verify _resolve_database_id behavior for empty string
 
+        # Updated: Result is a dict, not a JSON string
+        assert isinstance(result, dict)
         # If ID is "", _resolve_database_id returns None (because of `if val:`)
-        assert "Database 'empty_db' not found" in res_json["error"]
+        assert "Database 'empty_db' not found" in result["error"]
 
     def test_create_page_valid_uuid(self, adapter):
         adapter.client.pages.create.return_value = {"id": "new_page_id", "url": "http://page"}
@@ -110,5 +109,7 @@ class TestNotionAdapterURL:
         result = adapter.create_page("bad_db", "My Page")
 
         adapter.client.pages.create.assert_not_called()
-        res_json = json.loads(result)
-        assert "error" in res_json
+
+        # Updated: Result is a dict, not a JSON string
+        assert isinstance(result, dict)
+        assert "error" in result

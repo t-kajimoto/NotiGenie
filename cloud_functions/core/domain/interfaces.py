@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Union
 
 class ILanguageModel(ABC):
     """
@@ -30,7 +30,7 @@ class INotionRepository(ABC):
     """
 
     @abstractmethod
-    def search_database(self, query: str, database_name: Optional[str] = None) -> str:
+    def search_database(self, query: str, database_name: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         データベースからページを検索します。
 
@@ -39,12 +39,14 @@ class INotionRepository(ABC):
             database_name (Optional[str]): データベース名（指定がない場合は全データベース、または適切なものを選択）
 
         Returns:
-            str: 検索結果のJSON文字列（LLMに渡すため）
+            Union[List[Dict[str, Any]], Dict[str, Any]]: 検索結果のリスト、またはエラー時の辞書。
+            Clean Architectureの観点から、JSON文字列（Infrastructureの詳細）ではなく、
+            Pythonのデータ構造（Domainに近い形式）を返します。
         """
         pass
 
     @abstractmethod
-    def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> str:
+    def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         データベースに新しいページを作成します。
 
@@ -54,12 +56,12 @@ class INotionRepository(ABC):
             properties (Optional[Dict[str, Any]]): その他のプロパティ
 
         Returns:
-            str: 作成結果のJSON文字列
+            Dict[str, Any]: 作成結果の辞書
         """
         pass
 
     @abstractmethod
-    def update_page(self, page_id: str, properties: Dict[str, Any]) -> str:
+    def update_page(self, page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
         """
         ページを更新します。
 
@@ -68,12 +70,12 @@ class INotionRepository(ABC):
             properties (Dict[str, Any]): 更新するプロパティ
 
         Returns:
-            str: 更新結果のJSON文字列
+            Dict[str, Any]: 更新結果の辞書
         """
         pass
 
     @abstractmethod
-    def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> str:
+    def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         ブロックに子ブロックを追加します。
 
@@ -82,6 +84,6 @@ class INotionRepository(ABC):
             children (List[Dict[str, Any]]): 追加する子ブロックのリスト
 
         Returns:
-             str: 追加結果のJSON文字列
+             Dict[str, Any]: 追加結果の辞書
         """
         pass
