@@ -76,6 +76,15 @@ class NotionAdapter(INotionRepository):
     def search_database(self, query: str, database_name: Optional[str] = None) -> str:
         """
         データベースからページを検索します。
+
+        Args:
+            query (str): 検索キーワード。タイトルに含まれる文字列を指定します。
+            database_name (str, optional): 検索対象のデータベース名（英語のキー名）。
+                                         例: 'todo_list', 'menu_list', 'shopping_list'。
+                                         指定しない場合は全体検索を行いますが、精度が落ちるためデータベース名の指定を強く推奨します。
+
+        Returns:
+            str: 検索結果のJSON文字列。
         """
         logger.info(f"Searching database. Query: {query}, DB Name: {database_name}")
 
@@ -87,7 +96,9 @@ class NotionAdapter(INotionRepository):
             if database_name:
                 database_id = self._resolve_database_id(database_name)
                 if not database_id:
-                     return json.dumps({"error": f"Database '{database_name}' not found in configuration."})
+                     msg = f"Database '{database_name}' not found in configuration. Available keys: {list(self.notion_database_mapping.keys())}"
+                     logger.warning(msg)
+                     return json.dumps({"error": msg})
 
             # Validate UUID format if database_id is present
             if database_id:
@@ -120,8 +131,10 @@ class NotionAdapter(INotionRepository):
 
                 # 2.7.0 workaround
                 # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
+                request_path = f"databases/{database_id}/query"
+                logger.info(f"Executing Notion API request. Path: {request_path}")
                 response = self.client.request(
-                    path=f"databases/{database_id}/query",
+                    path=request_path,
                     method="POST",
                     body=payload
                 )
@@ -179,6 +192,15 @@ class NotionAdapter(INotionRepository):
     def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> str:
         """
         データベースに新しいページを作成します。
+
+        Args:
+            database_name (str): 作成先のデータベース名（英語のキー名）。例: 'todo_list'。
+            title (str): ページのタイトル。
+            properties (dict, optional): その他のプロパティ。
+                                       キーはプロパティ名、値は設定する値（文字列、日付、選択肢など）。
+
+        Returns:
+            str: 作成されたページ情報のJSON文字列。
         """
         logger.info(f"Creating page. DB: {database_name}, Title: {title}")
 
@@ -235,6 +257,13 @@ class NotionAdapter(INotionRepository):
     def update_page(self, page_id: str, properties: Dict[str, Any]) -> str:
         """
         ページを更新します。
+
+        Args:
+            page_id (str): 更新対象のページのUUID。search_database等で取得したものを使用してください。
+            properties (dict): 更新するプロパティの内容。
+
+        Returns:
+            str: 更新結果のJSON文字列。
         """
         logger.info(f"Updating page. ID: {page_id}")
 
@@ -258,7 +287,14 @@ class NotionAdapter(INotionRepository):
 
     def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> str:
         """
-        ブロックに子ブロックを追加します。
+        ブロックに子ブロック（段落、ToDoなど）を追加します。
+
+        Args:
+            block_id (str): 親ブロックまたはページのUUID。
+            children (list): 追加するブロックのリスト。Notion APIのBlock Object形式に従ってください。
+
+        Returns:
+            str: 実行結果のJSON文字列。
         """
         logger.info(f"Appending block. ID: {block_id}")
 
