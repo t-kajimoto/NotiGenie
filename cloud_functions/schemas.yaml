@@ -1,122 +1,140 @@
 todo_list:
   title: "やりたいこと・話したいことリスト"
   id: "1ff1ac9c8c7080da9f23f594ec8bf0b5"
-  description: "やりたいことや話したいこと、タスクを管理するデータベース"
+  description: "やりたいこと、話したい話題、タスクを管理するデータベース。期限や担当者を設定して進捗を管理します。"
   properties:
     名前:
       type: title
-      description: "タスクや話題の内容"
+      description: "タスクや話題の具体的な内容（例：「〇〇へ行く」「予算の見直し」など）"
     いつまでくらいに:
       type: date
-      description: "期限や目安の日付"
+      description: "タスクの期限や目標日"
     カテゴリ:
       type: select
       options:
         - "やりたいこと"
         - "話したいこと"
+      description: "タスクの分類。「やりたいこと」はアクション、「話したいこと」は議論や相談。"
     テーマ:
       type: select
       options:
-        - "ちょっとした話"
-        - "真面目な話"
-        - "簡易タスク"
+        - "ちょっとした話" # 雑談、軽い相談
+        - "真面目な話" # 予算、将来のことなど重要な相談
+        - "簡易タスク" # すぐに完了できる作業
+      description: "話題の重さやタスクの性質。「真面目な話」は時間を取って話すべきこと、「簡易タスク」はすぐに終わること。"
     メモ:
       type: rich_text
-      description: "詳細やURLなどのメモ"
+      description: "詳細情報、URL、補足事項など"
     完了フラグ:
       type: checkbox
-      description: "完了したかどうか"
+      description: "チェックあり(true)なら完了済み、チェックなし(false)なら未完了"
     完了日:
       type: date
-      description: "完了した日付"
+      description: "タスクが完了した日付"
     担当:
       type: select
       options:
         - "もも"
         - "共有"
         - "たくみ"
+      description: "そのタスクの主担当者"
     提案者:
       type: select
       options:
         - "もも"
         - "たくみ"
+      description: "そのタスクや話題を起案した人"
 
 menu_list:
   title: "献立リスト"
   id: "1ff1ac9c8c708098bf4ac641178c9b8d"
-  description: "日々の献立（レシピ、食事、ご飯の予定、メニュー）を管理するデータベース"
+  description: "日々の献立（レシピ、食事、ご飯の予定）を管理するデータベース。過去の履歴や未来の予定が含まれます。"
   properties:
     名前:
       type: title
-      description: "料理名"
+      description: "料理の名前（例：「カレーライス」「豚肉の生姜焼き」）"
     サーブ担当:
       type: select
       options:
         - "たくみ"
         - "もも"
         - "共有"
+      description: "食事の準備（配膳など）をする担当"
     メモ:
       type: rich_text
+      description: "レシピのURLや味の感想、食材のメモなど"
     準備済みフラグ:
       type: checkbox
+      description: "料理の準備（下ごしらえや調理）が済んでいるかどうか"
     種類:
       type: select
       options:
         - "主菜"
         - "副菜"
         - "汁物"
+      description: "料理のカテゴリー"
     調理担当:
       type: select
       options:
         - "たくみ"
         - "もも"
+      description: "実際に料理を作る担当"
     調理方法:
       type: select
       options:
-        - "インスタント"
-        - "レンチン冷凍"
-        - "下味冷凍"
-        - "冷蔵保存"
-        - "材料冷蔵"
-        - "湯煎冷凍"
+        - "インスタント" # 袋麺や即席食品
+        - "レンチン冷凍" # 冷凍してレンジで温めるだけのもの
+        - "下味冷凍" # 味付けして冷凍し、解凍して焼く/煮るもの
+        - "冷蔵保存" # 冷蔵庫で保存している作り置き
+        - "材料冷蔵" # 食材が冷蔵庫にあり、これから調理が必要なもの
+        - "湯煎冷凍" # 湯煎で温める冷凍食品
+      description: "調理や保存の状態。食事の準備の手間を判断する材料になります。"
     食べたフラグ:
       type: checkbox
+      description: "既に食べたかどうか"
     食べた日:
       type: date
+      description: "実際に食べた日付"
     食べる日:
       type: date
+      description: "食べる予定の日付"
 
 shopping_list:
   title: "買い物リスト"
   id: "1ff1ac9c8c7080c89ae3fd7556f64880"
-  description: "購入する必要があるもの（買い物、欲しいもの、日用品、食材）を管理するデータベース"
+  description: "購入する必要があるもの（食材、日用品、欲しいもの）を管理するデータベース。スーパーやドラッグストアでの買い物リストとして使用します。"
   properties:
     名前:
       type: title
-      description: "商品名"
+      description: "商品名（例：「牛乳」「洗剤」）"
     カテゴリ:
       type: select
       options:
-        - "日用品"
-        - "食べ物"
+        - "日用品" # ドラッグストア、ホームセンター、スーパーなどで買う消耗品
+        - "食べ物" # スーパー、コンビニなどで買う食材・食品
+      description: "商品の分類。どこで買うべきかの判断材料になります。"
     メモ:
       type: rich_text
+      description: "個数、メーカー、特定の店名、セールの情報など"
     完了フラグ:
       type: checkbox
-      description: "購入済みかどうか"
+      description: "購入済みならチェックあり(true)、未購入ならチェックなし(false)。「買うもの」を探すときはfalseを検索します。"
     担当:
       type: select
       options:
         - "たくみ"
         - "もも"
         - "共有"
+      description: "誰が買うか、あるいは誰のためのものか"
     緊急度:
       type: select
       options:
-        - "なんとなく欲しいなぁ"
-        - "タイミングが合えば欲しい"
-        - "今すぐ欲しい"
-        - "今週中に欲しい"
-        - "来月中くらいには欲しい"
+        - "なんとなく欲しいなぁ" # 優先度低
+        - "タイミングが合えば欲しい" # 優先度低〜中
+        - "今すぐ欲しい" # 優先度高：最優先で購入すべき
+        - "今週中に欲しい" # 優先度中：次回の買い物で買うべき
+        - "来月中くらいには欲しい" # 優先度低：急がない
+      description: "購入の優先順位。買い物の際にどれを優先的にカゴに入れるかの判断基準。"
     購入日:
       type: date
+      description: "実際に購入した日付"
