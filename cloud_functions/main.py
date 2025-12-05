@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 # Clean Architecture Components
 # coreパッケージから必要なコンポーネントをインポートします
-from core.interfaces.gateways.gemini_adapter import GeminiAdapter
-from core.interfaces.gateways.notion_adapter import NotionAdapter
-from core.interfaces.controllers.line_controller import LineController
+from infrastructure.gateways.gemini_adapter import GeminiAdapter
+from infrastructure.gateways.notion_adapter import NotionAdapter
+from infrastructure.controllers.line_controller import LineController
 from core.use_cases.process_message import ProcessMessageUseCase
 
 

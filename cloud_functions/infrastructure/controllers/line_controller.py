@@ -5,7 +5,7 @@ import os
 import asyncio
 import datetime
 from zoneinfo import ZoneInfo
-from ...use_cases.process_message import ProcessMessageUseCase
+from core.use_cases.process_message import ProcessMessageUseCase
 
 
 class LineController:

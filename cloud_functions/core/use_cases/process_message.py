@@ -1,4 +1,4 @@
-from ..domain.interfaces import ILanguageModel, INotionRepository
+from core.domain.interfaces import ILanguageModel, INotionRepository
 
 
 class ProcessMessageUseCase:

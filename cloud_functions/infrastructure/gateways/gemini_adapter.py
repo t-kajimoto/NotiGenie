@@ -5,7 +5,7 @@ import logging
 import sys
 import google.generativeai as genai
 from typing import Dict, Any, List, Callable
-from ...domain.interfaces import ILanguageModel
+from core.domain.interfaces import ILanguageModel
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
