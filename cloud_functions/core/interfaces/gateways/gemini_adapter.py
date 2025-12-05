@@ -5,7 +5,7 @@ import logging
 import sys
 import functools
 import google.generativeai as genai
-from typing import Dict, Any, List, Callable
+from typing import Dict, Any, List, Callable, Optional
 from ...domain.interfaces import ILanguageModel
 
 # ---------------------------------------------------------------------------
@@ -146,14 +146,14 @@ class GeminiAdapter(ILanguageModel):
             system_instruction=system_instruction
         )
 
-    async def chat_with_tools(self, user_utterance: str, current_date: str, tools: List[Callable]) -> str:
+    async def chat_with_tools(self, user_utterance: str, current_date: str, tools: List[Callable], history: List[Dict[str, Any]] = None) -> str:
         """
         ツール（Function Calling）を使用してユーザーと会話を行い、最終的な応答を生成します。
 
         何をやっているか:
         1. システムプロンプトを構築します。
         2. Geminiモデルを初期化し、ツールを登録します。
-        3. `model.start_chat` でチャットセッションを開始します。
+        3. `model.start_chat` でチャットセッションを開始します。過去の履歴がある場合は渡します。
         4. `send_message` を呼び出してユーザーの発言を送信します。
            `enable_automatic_function_calling=True` を指定することで、
            モデルが必要と判断したツール呼び出しをSDK内部で自動的に実行・結果取得・再生成のループを行います。
@@ -163,6 +163,7 @@ class GeminiAdapter(ILanguageModel):
             user_utterance (str): ユーザーの入力テキスト。
             current_date (str): 現在日付。
             tools (List[Callable]): 使用可能なツール関数のリスト。
+            history (List[Dict[str, Any]]): 過去の会話履歴。
 
         Returns:
             str: モデルからの最終応答テキスト。
@@ -170,13 +171,16 @@ class GeminiAdapter(ILanguageModel):
         system_instruction = self._build_system_instruction(current_date)
         model = self._get_model(tools, system_instruction)
 
-        logger.info(f"Starting chat with tools. User Utterance: {user_utterance}")
+        # 履歴がNoneの場合は空リストにする
+        history_list = history if history else []
+
+        logger.info(f"Starting chat with tools. User Utterance: {user_utterance}. History Length: {len(history_list)}")
 
         # 同期メソッドを非同期実行するためのラッパー関数
         def _run_chat():
             # enable_automatic_function_calling=True により、ツール実行の往復（Turn）は
             # SDKが内部で処理してくれます。開発者は1回の呼び出しで最終結果を得られます。
-            chat = model.start_chat(enable_automatic_function_calling=True)
+            chat = model.start_chat(history=history_list, enable_automatic_function_calling=True)
             response = chat.send_message(user_utterance)
             return response.text
 
@@ -191,5 +195,4 @@ class GeminiAdapter(ILanguageModel):
             msg = f"Gemini API error in chat_with_tools: {e}"
             logger.error(msg)
             # エラー発生時は、そのままエラー内容をユーザーに伝える（デバッグ容易性のため）
-            # 本番運用では「申し訳ありません...」などに丸めることも検討してください。
             return f"申し訳ありません、エラーが発生しました: {e}"
