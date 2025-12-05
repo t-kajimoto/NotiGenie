@@ -19,7 +19,7 @@ class FirestoreAdapter(ISessionRepository):
         設定されていない場合はデフォルトデータベース ((default)) を使用します。
         """
         try:
-            database_id = os.environ.get("FIRESTORE_DATABASE", "(default)")
+            database_id = os.environ.get("FIRESTORE_DATABASE") or "(default)"
             # database引数はgoogle-cloud-firestore >= 2.0.0 で利用可能
             self.db = firestore.Client(database=database_id)
             self.collection_name = "conversations"

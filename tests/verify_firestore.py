@@ -29,7 +29,10 @@ def verify_firestore():
     try:
         # 2. Initialize Client
         # Note: This relies on Application Default Credentials (ADC)
-        db = firestore.Client()
+        database_id = os.environ.get("FIRESTORE_DATABASE") or "(default)"
+        print(f"[INFO] Target Database ID: {database_id}")
+
+        db = firestore.Client(database=database_id)
         print(f"[INFO] Client initialized. Project: {db.project}")
 
         # 3. Perform Write Test
