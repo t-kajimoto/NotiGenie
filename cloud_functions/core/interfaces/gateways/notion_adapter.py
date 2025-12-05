@@ -4,7 +4,7 @@ import logging
 import sys
 import traceback
 import uuid
-from typing import Dict, Any, Union, Optional, List
+from typing import Dict, Any, Optional, List
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
 
@@ -80,20 +80,36 @@ class NotionAdapter(INotionRepository):
 
         return None
 
-    def search_database(self, query: str, database_name: Optional[str] = None) -> str:
+    def _resolve_property_type(self, database_name: str, property_name: str) -> Optional[str]:
+        """
+        指定されたデータベースのプロパティの型を解決します。
+        """
+        if not database_name or database_name not in self.notion_database_mapping:
+            return None
+
+        props = self.notion_database_mapping[database_name].get("properties", {})
+        prop_config = props.get(property_name)
+        if prop_config:
+            return prop_config.get("type")
+        return None
+
+    def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> str:
         """
         データベースからページを検索します。
 
         Args:
-            query (str): 検索キーワード。タイトルに含まれる文字列を指定します。
+            query (str, optional): 検索キーワード。タイトルに含まれる文字列を指定します。指定しない場合はフィルタ条件のみで検索します。
             database_name (str, optional): 検索対象のデータベース名（英語のキー名）。
                                          例: 'todo_list', 'menu_list', 'shopping_list'。
                                          指定しない場合は全体検索を行いますが、精度が落ちるためデータベース名の指定を強く推奨します。
+            filter_conditions (str, optional): 絞り込み条件を指定するJSON形式の文字列。
+                                             例: '{"完了フラグ": false, "カテゴリ": "日用品"}'
+                                             値がboolの場合はcheckboxフィルタ、文字列の場合はselect/status/rich_textフィルタとして処理されます。
 
         Returns:
             str: 検索結果のJSON文字列。
         """
-        logger.info(f"Searching database. Query: {query}, DB Name: {database_name}")
+        logger.info(f"Searching database. Query: {query}, DB Name: {database_name}, Filter: {filter_conditions}")
 
         if not self.client:
             return json.dumps({"error": "Notion Client not initialized"})
@@ -119,6 +135,9 @@ class NotionAdapter(INotionRepository):
 
                 # 特定のDB内を検索 (databases.query)
                 payload = {}
+                filters = []
+
+                # タイトル検索 (query引数がある場合)
                 if query:
                     # タイトルプロパティ名を特定
                     title_prop = "Name" # default
@@ -128,13 +147,77 @@ class NotionAdapter(INotionRepository):
                              if v.get("type") == "title":
                                  title_prop = k
                                  break
-
-                    payload["filter"] = {
+                    filters.append({
                         "property": title_prop,
                         "title": {
                             "contains": query
                         }
-                    }
+                    })
+
+                # 追加のフィルタ条件 (filter_conditions引数がある場合)
+                if filter_conditions:
+                    try:
+                        conditions = json.loads(filter_conditions)
+                        for prop, value in conditions.items():
+                            prop_type = self._resolve_property_type(database_name, prop)
+
+                            if prop_type == "checkbox":
+                                filters.append({
+                                    "property": prop,
+                                    "checkbox": {
+                                        "equals": value
+                                    }
+                                })
+                            elif prop_type == "select":
+                                filters.append({
+                                    "property": prop,
+                                    "select": {
+                                        "equals": value
+                                    }
+                                })
+                            elif prop_type == "status":
+                                filters.append({
+                                    "property": prop,
+                                    "status": {
+                                        "equals": value
+                                    }
+                                })
+                            elif prop_type == "date":
+                                if isinstance(value, dict):
+                                     filters.append({
+                                        "property": prop,
+                                        "date": value
+                                    })
+                                else:
+                                     filters.append({
+                                        "property": prop,
+                                        "date": {
+                                            "equals": value
+                                        }
+                                    })
+                            else:
+                                # デフォルトは rich_text contains (または equals)
+                                # title プロパティへのフィルタもここで吸収される可能性があるが、
+                                # Notion API仕様では title プロパティには title フィルタを使うべき。
+                                # しかし prop_type が title と判明していれば title フィルタにする分岐を追加しても良い。
+                                # 一旦 rich_text でフォールバック。
+                                if isinstance(value, str):
+                                    # もしプロパティ型が不明でも、文字列なら部分一致検索を試みる
+                                    filters.append({
+                                        "property": prop,
+                                        "rich_text": {
+                                            "contains": value
+                                        }
+                                    })
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse filter_conditions: {filter_conditions}")
+                    except Exception as e:
+                        logger.error(f"Error building filter: {str(e)}")
+
+                if len(filters) > 1:
+                    payload["filter"] = {"and": filters}
+                elif len(filters) == 1:
+                    payload["filter"] = filters[0]
 
                 # Try using the official method if available (future proofing)
                 if hasattr(self.client.databases, "query"):
@@ -145,7 +228,6 @@ class NotionAdapter(INotionRepository):
                     )
                 else:
                     # 2.7.0 workaround: Use client.request to manually specify the path.
-                    # This avoids direct httpx usage and leverages the client's auth and error handling.
                     path = f"databases/{database_id}/query"
                     logger.info(f"Using client.request fallback. Path: {path}")
 
