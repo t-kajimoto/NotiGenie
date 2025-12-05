@@ -1,4 +1,5 @@
 import datetime
+import os
 from google.cloud import firestore
 from typing import List, Dict, Any
 from ...domain.interfaces import ISessionRepository
@@ -14,10 +15,15 @@ class FirestoreAdapter(ISessionRepository):
     def __init__(self):
         """
         初期化処理。Firestoreクライアントを生成します。
+        環境変数 FIRESTORE_DATABASE が設定されている場合はそのデータベースを使用し、
+        設定されていない場合はデフォルトデータベース ((default)) を使用します。
         """
         try:
-            self.db = firestore.Client()
+            database_id = os.environ.get("FIRESTORE_DATABASE", "(default)")
+            # database引数はgoogle-cloud-firestore >= 2.0.0 で利用可能
+            self.db = firestore.Client(database=database_id)
             self.collection_name = "conversations"
+            logger.info(f"Initialized Firestore Client with database: {database_id}")
         except Exception as e:
             logger.error(f"Failed to initialize Firestore Client: {e}")
             self.db = None
@@ -74,6 +80,7 @@ class FirestoreAdapter(ISessionRepository):
     def add_interaction(self, session_id: str, user_message: str, model_response: str):
         """
         新しいユーザー発言とAIの応答を履歴に追加します。
+        ドキュメントサイズの肥大化を防ぐため、最新の20ターン（40要素）のみを保持します。
         """
         if not self.db:
             return
@@ -81,18 +88,20 @@ class FirestoreAdapter(ISessionRepository):
         try:
             doc_ref = self.db.collection(self.collection_name).document(session_id)
 
-            # 現在の履歴を取得（get_recent_historyと同様のロジックで期限切れチェックが必要）
-            # ここではシンプルに、get_recent_historyを再利用するか、またはトランザクションを使うのが理想ですが、
-            # 簡易的に「取得して追記して保存」を行います。
-            # ただし、期限切れの場合は新規作成となります。
-
-            # 5分（デフォルト）で期限切れチェック
+            # 5分（デフォルト）で期限切れチェックを行い、有効な履歴のみを取得
             current_history = self.get_recent_history(session_id, limit_minutes=5)
 
             new_history = current_history + [
                 {"role": "user", "parts": [user_message]},
                 {"role": "model", "parts": [model_response]}
             ]
+
+            # 履歴の長さを制限（最新の40要素 = 20ターン分のみ保持）
+            # Geminiは大量のコンテキストを扱えますが、Firestoreの1MB制限と
+            # 課金（読み込みデータ量ではないが、処理効率）を考慮して制限を設けます。
+            max_history_length = 40
+            if len(new_history) > max_history_length:
+                new_history = new_history[-max_history_length:]
 
             data = {
                 "history": new_history,

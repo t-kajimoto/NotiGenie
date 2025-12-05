@@ -24,6 +24,7 @@
 | `LINE_CHANNEL_SECRET` | LINE Messaging API チャネルシークレット | LINE Developersコンソールから取得 |
 | `GEMINI_API_KEY` | Google Gemini API キー | Google AI Studioから取得 |
 | `NOTION_API_KEY` | Notion Integration Token | Notion Developersから取得 |
+| `FIRESTORE_DATABASE` | Firestore データベースID | デフォルト以外を使用する場合に指定（例: `chat-history`）。指定なしの場合は `(default)` が使用されます。 |
 
 ## GitHub Actions によるデプロイ手順
 
@@ -34,8 +35,19 @@
      - `Cloud Functions Developer` (`roles/cloudfunctions.developer`)
      - `Service Account User` (`roles/iam.serviceAccountUser`)
      - `Cloud Run Admin` (`roles/run.admin`) ※Gen 2 で `--allow-unauthenticated` を使用するために必要
-     - `Cloud Datastore User` (`roles/datastore.user`) ※会話履歴のFirestore保存に必要
+     - `Cloud Datastore User` (`roles/datastore.user`) ※会話履歴のFirestore保存に必要。GCPコンソールでは「Cloud Datastore ユーザー」と表示されます。
    - サービスアカウントのJSONキーをダウンロードし、GitHub Secretsの `GCP_SA_KEY` に登録します。
+
+   > **注意**: 初めてFirestoreを使用する場合、GCPコンソールからデータベースを作成する必要があります。
+   > 1. [Firestore コンソール](https://console.cloud.google.com/firestore) にアクセスします。
+   > 2. 「データベースを作成」をクリックします。
+   > 3. モードの選択で **「ネイティブ モード (Native mode)」** を選択します（推奨）。
+   > 4. ロケーションは Cloud Functions と同じリージョン（例: `asia-northeast1`）を選択します。
+   > 5. データベースIDは `(default)` のまま作成します。
+
+   > **セキュリティルールについて**:
+   > Cloud Functions（サーバーサイド）からのアクセスは IAM (`Cloud Datastore User`) によって認証されるため、Firestore セキュリティルールは **無視されます**。
+   > したがって、モバイルアプリ等から直接アクセスする予定がない場合は、セキュリティルールを「すべて拒否（デフォルト）」のままにしておくのが最も安全です。
 
 2. **その他のSecrets登録**:
    - 上記の表に従い、LINE, Gemini, Notion のAPIキーをGitHub Secretsに登録します。
