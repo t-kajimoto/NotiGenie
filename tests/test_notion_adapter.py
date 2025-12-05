@@ -29,7 +29,6 @@ def notion_adapter(mock_notion_client, monkeypatch):
 
 def test_search_database_with_query_legacy(notion_adapter, mock_notion_client):
     # Force databases.query to be missing to test legacy path
-    # When using MagicMock, deleting an attribute makes hasattr return False until accessed again
     del mock_notion_client.databases.query
 
     # 正常系: search_database with specific DB using workaround via client.request
@@ -37,28 +36,29 @@ def test_search_database_with_query_legacy(notion_adapter, mock_notion_client):
     # Mock the response object
     mock_notion_client.request.return_value = {"results": []}
 
-    result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
+    result = notion_adapter.search_database(query="milk", database_name="TestDB")
 
     mock_notion_client.request.assert_called_with(
         path=f"databases/{TEST_DB_UUID}/query",
         method="POST",
         body={"filter": {"property": "名前", "title": {"contains": "milk"}}}
     )
-    assert isinstance(result_json, str)
+    assert isinstance(result, list)
+    assert result == []
 
 def test_search_database_with_query_modern(notion_adapter, mock_notion_client):
-    # Verify modern path if query exists (MagicMock has it by default)
-    # Ensure it exists (in case it was deleted by another test running in same scope? fixtures are function scoped usually)
+    # Verify modern path if query exists
 
     mock_notion_client.databases.query.return_value = {"results": []}
 
-    result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
+    result = notion_adapter.search_database(query="milk", database_name="TestDB")
 
     mock_notion_client.databases.query.assert_called_with(
         database_id=TEST_DB_UUID,
         filter={"property": "名前", "title": {"contains": "milk"}}
     )
-    assert isinstance(result_json, str)
+    assert isinstance(result, list)
+    assert result == []
 
 def test_search_database_all(notion_adapter, mock_notion_client):
     # 正常系: search_database global
@@ -75,25 +75,25 @@ def test_create_page(notion_adapter, mock_notion_client):
     # 正常系: create_page
     mock_notion_client.pages.create.return_value = {"id": "page-123", "url": "http://notion.so/page-123"}
 
-    result_json = notion_adapter.create_page(database_name="TestDB", title="New Page")
+    result = notion_adapter.create_page(database_name="TestDB", title="New Page")
 
     mock_notion_client.pages.create.assert_called()
     call_kwargs = mock_notion_client.pages.create.call_args[1]
     assert call_kwargs["parent"]["database_id"] == TEST_DB_UUID
     assert call_kwargs["properties"]["名前"]["title"][0]["text"]["content"] == "New Page"
 
-    res = json.loads(result_json)
-    assert res["status"] == "success"
+    assert isinstance(result, dict)
+    assert result["status"] == "success"
 
 def test_update_page(notion_adapter, mock_notion_client):
     # 正常系: update_page
     mock_notion_client.pages.update.return_value = {"id": "page-123"}
 
-    result_json = notion_adapter.update_page(page_id="page-123", properties={"Status": "Done"})
+    result = notion_adapter.update_page(page_id="page-123", properties={"Status": "Done"})
 
     mock_notion_client.pages.update.assert_called_with(
         page_id="page-123",
         properties={"Status": "Done"}
     )
-    res = json.loads(result_json)
-    assert res["status"] == "success"
+    assert isinstance(result, dict)
+    assert result["status"] == "success"
