@@ -44,7 +44,7 @@ todo_list:
 menu_list:
   title: "献立リスト"
   id: "1ff1ac9c8c708098bf4ac641178c9b8d"
-  description: "日々の献立を管理するデータベース"
+  description: "日々の献立（レシピ、食事、ご飯の予定、メニュー）を管理するデータベース"
   properties:
     名前:
       type: title
@@ -89,7 +89,7 @@ menu_list:
 shopping_list:
   title: "買い物リスト"
   id: "1ff1ac9c8c7080c89ae3fd7556f64880"
-  description: "購入する必要があるものを管理するデータベース"
+  description: "購入する必要があるもの（買い物、欲しいもの、日用品、食材）を管理するデータベース"
   properties:
     名前:
       type: title
