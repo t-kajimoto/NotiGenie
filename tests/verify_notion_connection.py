@@ -16,16 +16,10 @@ def verify_connection():
 
     if api_key == "dummy":
         logger.warning("NOTION_API_KEY is set to 'dummy'. Real connection test will fail if attempted, but skipping for CI/Sandbox safety unless explicit.")
-        # Sandbox environment usually has 'dummy' or no key.
-        # If the user wants to test, they must provide the key.
-        # However, to be helpful, we will try to proceed if it's dummy, expecting it to fail,
-        # or we can just return False saying "Provide a real key".
-        # Let's try to proceed so the user sees the auth error if they forgot to set it.
-        pass
+        # Proceed to test structure, but expect auth failure.
 
     try:
         # Load schemas
-        # Assumes this script is in tests/ directory and schemas is in cloud_functions/
         current_dir = os.path.dirname(os.path.abspath(__file__))
         schema_path = os.path.join(current_dir, "../cloud_functions/schemas.yaml")
 
@@ -44,7 +38,12 @@ def verify_connection():
             user = client.users.me()
             logger.info(f"Authenticated as: {user.get('name')} (Bot ID: {user.get('id')})")
         except APIResponseError as e:
-            logger.error(f"Authentication failed: {e.code} - {e.message}")
+            # Handle APIResponseError gracefully (no 'message' attribute in newer versions?)
+            msg = str(e)
+            logger.error(f"Authentication failed: {e.code} - {msg}")
+            # If it's just dummy key, we stop here but don't crash script with traceback
+            if api_key == "dummy":
+                return False
             return False
 
         # 2. Test database access (Authorization check)
@@ -59,23 +58,32 @@ def verify_connection():
         # Retrieve database metadata
         try:
             db_info = client.databases.retrieve(database_id=db_id)
-            # Notion API database title is a list of rich text objects
             title_obj = db_info.get('title', [])
             title_text = title_obj[0].get('plain_text', 'No Title') if title_obj else 'No Title'
             logger.info(f"Successfully retrieved database metadata: {title_text}")
         except APIResponseError as e:
-            logger.error(f"Failed to retrieve database metadata: {e.code} - {e.message}")
+            logger.error(f"Failed to retrieve database metadata: {e.code} - {str(e)}")
             logger.error("Please ensure the integration is invited to the database.")
             return False
 
         # 3. Test query (Content access check)
         logger.info("Attempting a simple query (limit=1)...")
         try:
-            results = client.databases.query(database_id=db_id, page_size=1)
+            # Check if query method exists (compatibility with notion-client 2.7.0)
+            if hasattr(client.databases, "query"):
+                results = client.databases.query(database_id=db_id, page_size=1)
+            else:
+                logger.info("client.databases.query method missing. Using client.request workaround.")
+                results = client.request(
+                    path=f"databases/{db_id}/query",
+                    method="POST",
+                    body={"page_size": 1}
+                )
+
             count = len(results.get("results", []))
             logger.info(f"Query successful. Retrieved {count} items.")
         except APIResponseError as e:
-             logger.error(f"Query failed: {e.code} - {e.message}")
+             logger.error(f"Query failed: {e.code} - {str(e)}")
              return False
 
         return True

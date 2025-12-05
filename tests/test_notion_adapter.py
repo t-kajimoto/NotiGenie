@@ -14,6 +14,10 @@ def mock_notion_client(mocker):
     # notion_client.Client をモック化
     mock_client_cls = mocker.patch('cloud_functions.core.interfaces.gateways.notion_adapter.Client')
     mock_instance = mock_client_cls.return_value
+
+    # Ensure databases is a mock
+    mock_instance.databases = MagicMock()
+
     return mock_instance
 
 @pytest.fixture
@@ -23,8 +27,12 @@ def notion_adapter(mock_notion_client, monkeypatch):
     mapping = {"TestDB": {"id": TEST_DB_UUID, "description": "Test DB", "properties": {"名前": {"type": "title"}}}}
     return NotionAdapter(mapping)
 
-def test_search_database_with_query(notion_adapter, mock_notion_client):
-    # 正常系: search_database with specific DB
+def test_search_database_with_query_legacy(notion_adapter, mock_notion_client):
+    # Force databases.query to be missing to test legacy path
+    # When using MagicMock, deleting an attribute makes hasattr return False until accessed again
+    del mock_notion_client.databases.query
+
+    # 正常系: search_database with specific DB using workaround
     mock_notion_client.request.return_value = {"results": []}
 
     result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
@@ -33,6 +41,20 @@ def test_search_database_with_query(notion_adapter, mock_notion_client):
         path=f"databases/{TEST_DB_UUID}/query",
         method="POST",
         body={"filter": {"property": "名前", "title": {"contains": "milk"}}}
+    )
+    assert isinstance(result_json, str)
+
+def test_search_database_with_query_modern(notion_adapter, mock_notion_client):
+    # Verify modern path if query exists (MagicMock has it by default)
+    # Ensure it exists (in case it was deleted by another test running in same scope? fixtures are function scoped usually)
+
+    mock_notion_client.databases.query.return_value = {"results": []}
+
+    result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
+
+    mock_notion_client.databases.query.assert_called_with(
+        database_id=TEST_DB_UUID,
+        filter={"property": "名前", "title": {"contains": "milk"}}
     )
     assert isinstance(result_json, str)
 
