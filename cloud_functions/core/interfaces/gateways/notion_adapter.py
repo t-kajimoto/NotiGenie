@@ -33,7 +33,12 @@ class NotionAdapter(INotionRepository):
         self.api_key = os.environ.get("NOTION_API_KEY")
 
         if self.api_key and self.api_key != "dummy":
-            self.client = Client(auth=self.api_key)
+            # デバッグログを有効化し、loggerを渡すことでログを集約
+            self.client = Client(
+                auth=self.api_key,
+                logger=logger,
+                log_level=logging.DEBUG
+            )
             logger.info("Notion Client initialized successfully.")
         else:
             self.client = None
@@ -141,6 +146,14 @@ class NotionAdapter(INotionRepository):
                     # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
                     request_path = f"databases/{database_id}/query"
                     logger.info(f"Executing Notion API request. Path: {request_path}")
+
+                    # ログ出力: クライアントのBase URLと構築されるであろうURLを確認
+                    try:
+                        base_url = str(self.client.client.base_url)
+                        logger.info(f"DEBUG: Client Base URL: {base_url}")
+                        logger.info(f"DEBUG: Full Request URL will be: {base_url}{request_path}")
+                    except Exception as debug_e:
+                         logger.error(f"DEBUG LOG ERROR: {debug_e}")
 
                     response = self.client.request(
                         path=request_path,
