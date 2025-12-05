@@ -142,24 +142,29 @@ class NotionAdapter(INotionRepository):
                         **payload
                     )
                 else:
-                    # 2.7.0 workaround
-                    # Note: Notion API expects UUID for database_id. uuid.UUID() ensures it is formatted correctly.
-                    request_path = f"databases/{database_id}/query"
-                    logger.info(f"Executing Notion API request. Path: {request_path}")
+                    # 2.7.0 workaround: Use underlying httpx client directly to avoid URL construction issues
+                    # with notion-client's request method in some environments.
+                    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+                    logger.info(f"Executing Notion API request directly via httpx. URL: {url}")
 
-                    # ログ出力: クライアントのBase URLと構築されるであろうURLを確認
-                    try:
-                        base_url = str(self.client.client.base_url)
-                        logger.info(f"DEBUG: Client Base URL: {base_url}")
-                        logger.info(f"DEBUG: Full Request URL will be: {base_url}{request_path}")
-                    except Exception as debug_e:
-                         logger.error(f"DEBUG LOG ERROR: {debug_e}")
-
-                    response = self.client.request(
-                        path=request_path,
-                        method="POST",
-                        body=payload
+                    response_obj = self.client.client.post(
+                        url=url,
+                        json=payload
                     )
+
+                    # Raise APIResponseError for non-2xx responses to maintain consistency
+                    if response_obj.is_error:
+                        try:
+                            error_body = response_obj.json()
+                            code = error_body.get("code", "unknown_error")
+                            message = error_body.get("message", "Unknown error occurred")
+                        except Exception:
+                            code = "http_error"
+                            message = response_obj.text
+
+                        raise APIResponseError(response_obj, message, code)
+
+                    response = response_obj.json()
             else:
                 # 全体検索 (search endpoint)
                 search_params = {"query": query} if query else {}
