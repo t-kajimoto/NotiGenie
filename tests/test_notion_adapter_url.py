@@ -55,21 +55,19 @@ class TestNotionAdapterURL:
         # Explicitly test the legacy path by removing the query method from the mock
         del adapter.client.databases.query
 
-        # Mock the underlying httpx client response
-        mock_response = MagicMock()
-        mock_response.is_error = False
-        mock_response.json.return_value = {"results": []}
-        adapter.client.client.post.return_value = mock_response
+        # Mock the client.request response
+        adapter.client.request.return_value = {"results": []}
 
         query = "test"
         adapter.search_database(query, "test_db")
 
         expected_uuid = str(uuid.UUID("1ff1ac9c8c708098bf4ac641178c9b8d"))
-        expected_url = f"https://api.notion.com/v1/databases/{expected_uuid}/query"
+        expected_path = f"databases/{expected_uuid}/query"
 
-        adapter.client.client.post.assert_called_once()
-        call_kwargs = adapter.client.client.post.call_args[1]
-        assert call_kwargs["url"] == expected_url
+        adapter.client.request.assert_called_once()
+        call_kwargs = adapter.client.request.call_args[1]
+        assert call_kwargs["path"] == expected_path
+        assert call_kwargs["method"] == "POST"
 
     def test_search_database_invalid_uuid(self, adapter):
         # Should return error and NOT call client.request

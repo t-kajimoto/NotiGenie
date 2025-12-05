@@ -32,21 +32,17 @@ def test_search_database_with_query_legacy(notion_adapter, mock_notion_client):
     # When using MagicMock, deleting an attribute makes hasattr return False until accessed again
     del mock_notion_client.databases.query
 
-    # 正常系: search_database with specific DB using workaround via httpx client
+    # 正常系: search_database with specific DB using workaround via client.request
 
     # Mock the response object
-    mock_response = MagicMock()
-    mock_response.is_error = False
-    mock_response.json.return_value = {"results": []}
-
-    # Mock client.client.post (httpx post)
-    mock_notion_client.client.post.return_value = mock_response
+    mock_notion_client.request.return_value = {"results": []}
 
     result_json = notion_adapter.search_database(query="milk", database_name="TestDB")
 
-    mock_notion_client.client.post.assert_called_with(
-        url=f"https://api.notion.com/v1/databases/{TEST_DB_UUID}/query",
-        json={"filter": {"property": "名前", "title": {"contains": "milk"}}}
+    mock_notion_client.request.assert_called_with(
+        path=f"databases/{TEST_DB_UUID}/query",
+        method="POST",
+        body={"filter": {"property": "名前", "title": {"contains": "milk"}}}
     )
     assert isinstance(result_json, str)
 
