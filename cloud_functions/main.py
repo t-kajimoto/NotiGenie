@@ -38,44 +38,22 @@ from core.use_cases.process_message import ProcessMessageUseCase
 # ---------------------------------------------------------------------------
 # 設定読み込み関数
 # ---------------------------------------------------------------------------
-def load_config_and_prompts() -> Tuple[dict, str]:
+def load_prompts() -> str:
     """
-    アプリケーション動作に必要な設定ファイルとプロンプトファイルを読み込みます。
-
-    何をやっているか:
-    1. 現在のファイルパスを基準に、`schemas.yaml` と `prompts/system_instruction.md` のパスを特定します。
-    2. ファイルが存在すれば読み込み、辞書や文字列として返します。
-    3. ファイルがない場合は、警告ログを出力し、デフォルト値（空の辞書やフォールバック用メッセージ）を使用します。
-
-    なぜやっているか:
-    - Infrastructure層の責務として、外部ファイルシステムや環境変数からの設定読み込みを一箇所に集約するためです。
-    - ファイルが見つからない場合でもアプリケーションがクラッシュせず、エラーハンドリングできるようにするためです。
+    AIへのシステム指示書（プロンプト）をファイルから読み込みます。
 
     Returns:
-        Tuple[dict, str]: (データベース定義の辞書, システムプロンプトの文字列)
+        str: システムプロンプトの文字列。
     """
     base_path = os.path.dirname(os.path.abspath(__file__))
-    schemas_path = os.path.join(base_path, "schemas.yaml")
-
-    # Notionデータベースの定義（スキーマ）を読み込む
-    if os.path.exists(schemas_path):
-        with open(schemas_path, 'r', encoding='utf-8') as f:
-            schemas = yaml.safe_load(f)
-    else:
-        logger.warning(f"{schemas_path} not found. Using empty config.")
-        schemas = {}
-
-    # AIへのシステム指示書（プロンプト）を読み込む
     prompt_path = os.path.join(base_path, "prompts/system_instruction.md")
+
     if os.path.exists(prompt_path):
         with open(prompt_path, 'r', encoding='utf-8') as f:
-            system_instruction = f.read()
+            return f.read()
     else:
-        # ファイルがない場合の予備の指示
         logger.warning(f"{prompt_path} not found.")
-        system_instruction = "You are a helpful assistant managing Notion databases. Today is {current_date}. Databases: {database_descriptions}"
-
-    return schemas, system_instruction
+        return "You are a helpful assistant managing Notion databases. Today is {current_date}. Databases: {database_descriptions}"
 
 
 # ---------------------------------------------------------------------------
@@ -86,19 +64,20 @@ def load_config_and_prompts() -> Tuple[dict, str]:
 # 2回目以降のリクエストでは初期化済みのオブジェクトが再利用されます（ウォームスタート）。
 
 try:
-    schemas_data, system_instruction = load_config_and_prompts()
-    db_mapping = schemas_data  # schemas.yamlの内容をDBマッピングとして使用
+    # 1. スキーマ情報とプロンプトの読み込み
+    #    - FirestoreAdapterを最初に初期化し、NotionスキーマをFirestoreから読み込みます。
+    #    - これにより、schemas.yamlへの依存がなくなり、DB定義を動的に管理できます。
+    firestore_adapter = FirestoreAdapter()
+    schemas_data = firestore_adapter.load_notion_schemas()
+    system_instruction = load_prompts()
 
-    # 1. ゲートウェイ（外部サービスへのアダプター）の初期化
-    #    GeminiAdapter: AIモデルとの対話を担当
-    #    NotionAdapter: Notion APIとの通信を担当
-    #    FirestoreAdapter: セッション履歴の管理を担当
+    # 2. ゲートウェイ（外部サービスへのアダプター）の初期化
+    #    - 取得したスキーマ情報を、GeminiとNotionのアダプターに渡します。
     gemini_adapter = GeminiAdapter(
         system_instruction_template=system_instruction,
-        notion_database_mapping=db_mapping
+        notion_database_mapping=schemas_data
     )
-    notion_adapter = NotionAdapter(notion_database_mapping=db_mapping)
-    firestore_adapter = FirestoreAdapter()
+    notion_adapter = NotionAdapter(notion_database_mapping=schemas_data)
 
     # ---------------------------------------------------------
     # Notion API 接続確認 (Startup Verification)
