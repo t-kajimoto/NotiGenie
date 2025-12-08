@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - 'raspberry_pi/**'
-      - 'tests/**'
+      - 'tests/raspberry_pi/**'
+      - 'tests/conftest.py'
       - '.github/workflows/raspberry_pi_ci.yml'
 
 jobs:
@@ -37,5 +38,5 @@ jobs:
       - name: Run tests
         run: |
           # Enable the wake word engine test
-          mv tests/test_wake_word_engine.py.disabled tests/test_wake_word_engine.py
-          pytest tests/test_wake_word_engine.py
+          mv tests/raspberry_pi/test_wake_word_engine.py.disabled tests/raspberry_pi/test_wake_word_engine.py
+          pytest tests/raspberry_pi/test_wake_word_engine.py

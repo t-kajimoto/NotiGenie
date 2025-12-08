@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - 'cloud_functions/**'
-      - 'tests/**'
+      - 'tests/cloud_functions/**'
+      - 'tests/conftest.py'
       - '.github/workflows/cloud_functions_ci.yml'
 
 jobs:
@@ -34,5 +35,4 @@ jobs:
       - name: Run tests
         run: |
           # We only run tests relevant to cloud functions.
-          # Since tests are mixed in tests/, we try to run them all but exclude disabled.
-          pytest tests/ --ignore=tests/test_wake_word_engine.py.disabled
+          pytest tests/cloud_functions/
