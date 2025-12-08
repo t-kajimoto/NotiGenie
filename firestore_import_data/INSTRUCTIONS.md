@@ -1,60 +1,35 @@
 # Firestoreへのスキーマ情報インポート手順
 
-このディレクトリに含まれるJSONファイル (`todo_list.json`, `menu_list.json`, `shopping_list.json`) をCloud Firestoreにインポートする方法を説明します。
+このディレクトリ内のスキーマ情報（JSONファイル）は、GitHub Actionsによってリポジトリへのプッシュ時に自動的にCloud Firestoreへインポートされます。
 
-Firebaseのコンソール（管理画面）から手動でインポートするのが最も簡単で確実です。
-
----
-
-### 1. Firebaseプロジェクトを開く
-
--   [Firebase Console](https://console.firebase.google.com/) にアクセスし、このアプリケーションが使用しているFirebaseプロジェクトを選択します。
-
-### 2. Firestoreデータベースに移動
-
--   左側のナビゲーションメニューから「ビルド」>「Firestore Database」を選択します。
-
-### 3. `notion_schemas` コレクションを作成
-
--   もし`notion_schemas`コレクションがまだ存在しない場合、画面上部にある「コレクションを開始」ボタンをクリックします。
--   **コレクションID**に `notion_schemas` と入力し、「次へ」をクリックします。
-
-### 4. ドキュメントの作成とデータのインポート
-
-この手順を、3つのJSONファイルそれぞれに対して繰り返します。
-
-#### a. ドキュメントを追加
-
--   `notion_schemas`コレクションを選択した状態で、「ドキュメントを追加」をクリックします。
-
-#### b. ドキュメントIDを設定
-
--   「ドキュメントID」の入力欄に、JSONファイルの名前（拡張子なし）を入力します。
-    -   例: `todo_list.json` をインポートする場合は `todo_list` と入力します。
-
-#### c. 不要なフィールドを削除
-
--   自動で作成されている空のフィールドがあれば、右側のゴミ箱アイコンをクリックして削除します。
-
-#### d. フィールドをインポート
-
--   ドキュメントIDの右上にある**縦三点リーダー（︙）**をクリックし、「**フィールドをインポート**」を選択します。
-
-    ![フィールドをインポート](https://i.imgur.com/7gB7pL2.png)
-
-#### e. JSONファイルの選択
-
--   ファイル選択ダイアログが表示されるので、ローカルリポジトリの `firestore_import_data` ディレクトリから、対応するJSONファイル（例: `todo_list.json`）を選択します。
-
-#### f. インポートの実行
-
--   ファイルを選択すると、インポートされるフィールドのプレビューが表示されます。内容を確認し、右下の「インポート」ボタンをクリックします。
--   インポートが完了すると、コンソール画面にJSONファイルの内容がフィールドとして展開されているのが確認できます。
-
-### 5. すべてのファイルをインポート
-
--   `menu_list.json` と `shopping_list.json` についても、ステップ4のa〜fを繰り返してください。
+自動インポートを有効にするには、一度だけ以下の設定が必要です。
 
 ---
 
-以上の手順で、スキーマ情報が正しくFirestoreに登録され、アプリケーションが動作するようになります。
+### GitHubリポジトリにSecretを設定する
+
+Google Cloudから取得したサービスアカウントキー（JSON）の内容を、リポジトリのActions secretsに登録します。
+
+1.  **リポジトリのSettingsに移動**
+    -   このGitHubリポジトリの上部にある「Settings」タブをクリックします。
+
+2.  **Secrets and variablesページに移動**
+    -   左側のメニューから「Secrets and variables」>「Actions」を選択します。
+
+3.  **新しいSecretを作成**
+    -   「Repository secrets」のセクションにある「New repository secret」ボタンをクリックします。
+
+4.  **`GCP_SA_KEY` を登録**
+    -   **Name:** `GCP_SA_KEY`
+    -   **Secret:** Google Cloudコンソールからダウンロードしたサービスアカウントキー（JSONファイル）の**内容全体**を貼り付けます。
+    -   「Add secret」ボタンをクリックして保存します。
+
+5.  **(オプション) `FIRESTORE_DATABASE` を登録**
+    -   もしデフォルト (`(default)`) 以外のFirestoreデータベースを使用している場合は、同様に `FIRESTORE_DATABASE` という名前でデータベースIDをSecretに登録してください。
+
+---
+
+### 使い方
+
+-   以上の設定が完了した後、この `firestore_import_data` ディレクトリ内のJSONファイルを変更（追加・修正・削除）してリポジトリにプッシュすると、自動的にGitHub Actionsが起動し、変更内容がFirestoreに反映されます。
+-   アクションの実行結果は、リポジトリの「Actions」タブから確認できます。
