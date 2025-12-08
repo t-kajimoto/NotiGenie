@@ -8,16 +8,58 @@ class ILanguageModel(ABC):
     """
 
     @abstractmethod
-    async def chat_with_tools(self, user_utterance: str, current_date: str, tools: List[Callable], history: List[Dict[str, Any]] = None) -> str:
+    async def select_databases(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> List[str]:
         """
-        ツールを使用してユーザーと会話を行い、最終的な応答を生成します。
-        Automatic Function Calling を使用することを想定しています。
+        ユーザーの発言とDBの要約から、使用すべきNotionデータベースを選択します。
 
         Args:
             user_utterance (str): ユーザーの発言
             current_date (str): 現在の日付（システムプロンプト等で使用）
-            tools (List[Callable]): 使用可能なツールのリスト（関数）
-            history (List[Dict[str, Any]]): 過去の会話履歴。各要素は {'role': str, 'parts': list[str]} 形式。
+            history (List[Dict[str, Any]]): 過去の会話履歴。
+
+        Returns:
+            List[str]: 使用すべきデータベース名のリスト
+        """
+        pass
+
+    @abstractmethod
+    async def generate_tool_calls(
+        self,
+        user_utterance: str,
+        current_date: str,
+        tools: List[Callable],
+        single_db_schema: Dict[str, Any],
+        history: List[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        単一のDBスキーマをコンテキストとして、実行すべきツールコール（関数と引数）を生成します。
+
+        Args:
+            user_utterance (str): ユーザーの発言
+            current_date (str): 現在の日付
+            tools (List[Callable]): 使用可能なツールのリスト
+            single_db_schema (Dict[str, Any]): 対象となる単一DBのスキーマ情報
+            history (List[Dict[str, Any]]): 過去の会話履歴
+
+        Returns:
+            List[Dict[str, Any]]: ツールコールのリスト。例: [{'name': 'search_database', 'args': {'query': '...'} }]
+        """
+        pass
+
+    @abstractmethod
+    async def generate_response(
+        self,
+        user_utterance: str,
+        tool_results: List[Dict[str, Any]],
+        history: List[Dict[str, Any]] = None
+    ) -> str:
+        """
+        ツール実行結果をコンテキストとして、ユーザーへの最終的な応答を生成します。
+
+        Args:
+            user_utterance (str): ユーザーの元の発言
+            tool_results (List[Dict[str, Any]]): ツールの実行結果
+            history (List[Dict[str, Any]]): 過去の会話履歴
 
         Returns:
             str: 最終的な応答テキスト
