@@ -1,8 +1,14 @@
 import os
 import sys
-import yaml
 import logging
 from notion_client import Client, APIResponseError
+
+# Add project root to sys.path to allow imports from cloud_functions
+# これは、このスクリプトをリポジトリルートから `python tests/cloud_functions/verify_notion_connection.py`
+# として実行する際に、`cloud_functions.core` のようなモジュールを見つけられるようにするためのおまじないです。
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from cloud_functions.core.interfaces.gateways.firestore_adapter import FirestoreAdapter
+
 
 # Configure logging to stderr
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,16 +25,13 @@ def verify_connection():
         # Proceed to test structure, but expect auth failure.
 
     try:
-        # Load schemas
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        schema_path = os.path.join(current_dir, "../cloud_functions/schemas.yaml")
-
-        if not os.path.exists(schema_path):
-             logger.error(f"schemas.yaml not found at {schema_path}")
-             return False
-
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schemas = yaml.safe_load(f)
+        # Load schemas from Firestore
+        logger.info("Loading Notion schemas from Firestore...")
+        firestore_adapter = FirestoreAdapter()
+        schemas = firestore_adapter.load_notion_schemas()
+        if not schemas:
+            logger.error("Failed to load schemas from Firestore. Cannot proceed with DB verification.")
+            return False
 
         client = Client(auth=api_key, notion_version="2022-06-28")
 
@@ -49,7 +52,7 @@ def verify_connection():
         # 2. Test database access (Authorization check)
         menu_db = schemas.get("menu_list")
         if not menu_db:
-            logger.error("'menu_list' not found in schemas.yaml")
+            logger.error("'menu_list' not found in loaded schemas from Firestore.")
             return False
 
         db_id = menu_db.get("id")

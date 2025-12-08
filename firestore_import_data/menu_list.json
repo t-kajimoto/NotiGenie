@@ -1,0 +1,69 @@
+{
+  "title": "献立リスト",
+  "id": "1ff1ac9c8c708098bf4ac641178c9b8d",
+  "description": "日々の献立（レシピ、食事、ご飯の予定）を管理するデータベース。過去の履歴や未来の予定が含まれます。",
+  "properties": {
+    "名前": {
+      "type": "title",
+      "description": "料理の名前（例：「カレーライス」「豚肉の生姜焼き」）"
+    },
+    "サーブ担当": {
+      "type": "select",
+      "options": [
+        "たくみ",
+        "もも",
+        "共有"
+      ],
+      "description": "食事の準備（配膳など）をする担当"
+    },
+    "メモ": {
+      "type": "rich_text",
+      "description": "レシピのURLや味の感想、食材のメモなど"
+    },
+    "準備済みフラグ": {
+      "type": "checkbox",
+      "description": "料理の準備（下ごしらえや調理）が済んでいるかどうか"
+    },
+    "種類": {
+      "type": "select",
+      "options": [
+        "主菜",
+        "副菜",
+        "汁物"
+      ],
+      "description": "料理のカテゴリー"
+    },
+    "調理担当": {
+      "type": "select",
+      "options": [
+        "たくみ",
+        "もも"
+      ],
+      "description": "実際に料理を作る担当"
+    },
+    "調理方法": {
+      "type": "select",
+      "options": [
+        "インスタント",
+        "レンチン冷凍",
+        "下味冷凍",
+        "冷蔵保存",
+        "材料冷蔵",
+        "湯煎冷凍"
+      ],
+      "description": "調理や保存の状態。食事の準備の手間を判断する材料になります。"
+    },
+    "食べたフラグ": {
+      "type": "checkbox",
+      "description": "既に食べたかどうか"
+    },
+    "食べた日": {
+      "type": "date",
+      "description": "実際に食べた日付"
+    },
+    "食べる日": {
+      "type": "date",
+      "description": "食べる予定の日付"
+    }
+  }
+}

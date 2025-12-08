@@ -22,11 +22,52 @@ class FirestoreAdapter(ISessionRepository):
             database_id = os.environ.get("FIRESTORE_DATABASE") or "(default)"
             # database引数はgoogle-cloud-firestore >= 2.0.0 で利用可能
             self.db = firestore.Client(database=database_id)
-            self.collection_name = "conversations"
+            self.session_collection_name = "conversations"
+            self.schema_collection_name = "notion_schemas"
             logger.info(f"Initialized Firestore Client with database: {database_id}")
         except Exception as e:
             logger.error(f"Failed to initialize Firestore Client: {e}")
             self.db = None
+
+    def load_notion_schemas(self) -> Dict[str, Any]:
+        """
+        FirestoreからNotionのスキーマ定義を全て読み込みます。
+
+        何をやっているか:
+        1. 'notion_schemas' コレクションの全ドキュメントを取得します。
+        2. 各ドキュメントについて、ドキュメントIDをキー（例: 'todo_list'）、
+           ドキュメントのフィールド内容を値とする辞書を作成します。
+        3. これにより、以前 `schemas.yaml` から読み込んでいたのと同じデータ構造を再現します。
+
+        なぜやっているか:
+        - NotionのDB IDのような機密情報や、頻繁に変更される可能性のあるスキーマ定義を
+          ソースコードから分離するためです。
+        - これにより、新しいDBを追加する際にデプロイが不要になります。
+
+        Returns:
+            Dict[str, Any]: Notionスキーマ定義の辞書。
+                           エラーが発生した場合は空の辞書を返します。
+        """
+        if not self.db:
+            logger.error("Cannot load Notion schemas: Firestore client is not initialized.")
+            return {}
+
+        try:
+            schemas = {}
+            docs = self.db.collection(self.schema_collection_name).stream()
+            for doc in docs:
+                schemas[doc.id] = doc.to_dict()
+
+            if not schemas:
+                logger.warning(f"No documents found in '{self.schema_collection_name}' collection. The application might not function correctly without Notion schemas.")
+            else:
+                logger.info(f"Successfully loaded {len(schemas)} Notion schemas from Firestore.")
+
+            return schemas
+
+        except Exception as e:
+            logger.error(f"Error loading Notion schemas from Firestore: {e}")
+            return {}
 
     def get_recent_history(self, session_id: str, limit_minutes: int) -> List[Dict[str, Any]]:
         """
@@ -36,7 +77,7 @@ class FirestoreAdapter(ISessionRepository):
             return []
 
         try:
-            doc_ref = self.db.collection(self.collection_name).document(session_id)
+            doc_ref = self.db.collection(self.session_collection_name).document(session_id)
             doc = doc_ref.get()
 
             if not doc.exists:
@@ -86,7 +127,7 @@ class FirestoreAdapter(ISessionRepository):
             return
 
         try:
-            doc_ref = self.db.collection(self.collection_name).document(session_id)
+            doc_ref = self.db.collection(self.session_collection_name).document(session_id)
 
             # 5分（デフォルト）で期限切れチェックを行い、有効な履歴のみを取得
             current_history = self.get_recent_history(session_id, limit_minutes=5)
