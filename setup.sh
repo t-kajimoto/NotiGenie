@@ -24,7 +24,7 @@ pip install -r cloud_functions/requirements.txt
 
 echo "テスト・開発用の依存関係をインストールしています..."
 # AGENTS.md に基づく
-pip install pytest pytest-asyncio pytest-mock flake8
+pip install --no-cache-dir -U pytest pytest-asyncio pytest-mock flake8
 
 echo "Raspberry Pi の依存関係をインストールしています..."
 # 環境によっては一部のパッケージ（pvporcupine等）のインストールに失敗する可能性があるため、エラーを許容して続行します。

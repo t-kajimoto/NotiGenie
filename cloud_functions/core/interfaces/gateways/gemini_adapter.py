@@ -5,6 +5,7 @@ import logging
 import sys
 import functools
 import google.generativeai as genai
+from google.generativeai.types import GenerationConfig, FunctionDeclaration, Tool
 from typing import Dict, Any, List, Callable, Optional
 from ...domain.interfaces import ILanguageModel
 
@@ -13,7 +14,6 @@ from ...domain.interfaces import ILanguageModel
 # ---------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-# ハンドラが設定されていない場合のみ追加（重複出力防止）
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -22,177 +22,185 @@ if not logger.handlers:
 class GeminiAdapter(ILanguageModel):
     """
     Gemini APIを使用したILanguageModelの実装クラス。
-
-    Infrastructure層に位置し、外部API（Google Gemini）との通信詳細をカプセル化します。
-    Domain層やUse Case層からは、このクラスがGeminiを使っていることは隠蔽されます。
+    3ステップの思考プロセス（DB選択→ツール生成→応答生成）を実装します。
     """
-
     def __init__(self, system_instruction_template: str, notion_database_mapping: dict):
-        """
-        初期化処理。
-
-        Args:
-            system_instruction_template (str): システムプロンプトのテンプレート。ここにDB定義などが埋め込まれます。
-            notion_database_mapping (dict): Notionデータベースの定義情報。プロンプト生成に使用します。
-        """
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
-
         genai.configure(api_key=api_key)
-
         self.system_instruction_template = system_instruction_template
         self.notion_database_mapping = notion_database_mapping
+        self.model_name = 'gemini-2.0-flash-lite'
 
-    def _build_system_instruction(self, current_date: str) -> str:
-        """
-        AIに与えるシステムプロンプトを動的に構築します。
-
-        何をやっているか:
-        1. `notion_database_mapping` からデータベース名、説明、プロパティ情報を抽出します。
-        2. それらをテキスト形式に整形し、テンプレート内の `{database_descriptions}` に埋め込みます。
-        3. `{current_date}` を現在の日付に置換します。
-
-        なぜやっているか:
-        AIが正確にツールを使用するためには、どのようなデータベースがあり、どのようなプロパティ（列）を持っているかを
-        理解している必要があるためです（RAGのようなコンテキスト注入）。
-        """
-        database_descriptions = ""
+    # ---------------------------------------------------------------------------
+    # プロンプト構築メソッド群
+    # ---------------------------------------------------------------------------
+    def _build_db_selection_instruction(self, current_date: str) -> str:
+        """【ステップ1: DB選択】用のシステムプロンプトを構築します。"""
+        db_summaries = ""
         for db_name, db_info in self.notion_database_mapping.items():
             title = db_info.get('title', db_name)
-            properties_info = ""
-            # プロパティ情報の詳細を展開
-            if 'properties' in db_info:
-                properties_info = "\n  Properties:\n"
-                for prop_name, prop_details in db_info['properties'].items():
-                    prop_type = prop_details.get('type', 'unknown')
-                    options = ""
-                    # 選択肢（Select/Status）がある場合は、有効な値を列挙してAIに教える
-                    if 'options' in prop_details:
-                        options = f" (Options: {', '.join(prop_details['options'])})"
-                    properties_info += f"  - {prop_name} ({prop_type}){options}\n"
+            db_summaries += f"- {db_name} ({title}): {db_info['description']}\n"
 
-            database_descriptions += f"- {db_name} ({title}): {db_info['description']}{properties_info}\n"
+        prompt = f"""ユーザーの質問に回答するために、どのNotionデータベースを使用すべきか判断してください。
+本日付: {current_date}
+利用可能なデータベース:
+{db_summaries}
+ユーザーの意図に最も関連性の高いデータベース名を `select_databases` ツールを使って返してください。関連するDBがない場合は空リストを返してください。"""
+        return prompt
+
+    def _build_tool_generation_instruction(self, current_date: str, single_db_schema: Dict[str, Any]) -> str:
+        """【ステップ2: ツールコール生成】用のシステムプロンプトを構築します。"""
+        db_name = single_db_schema.get('id')
+        title = single_db_schema.get('title', db_name)
+        properties_info = "\n  Properties:\n"
+        for prop_name, prop_details in single_db_schema.get('properties', {}).items():
+            prop_type = prop_details.get('type', 'unknown')
+            options = ""
+            if 'options' in prop_details:
+                options = f" (Options: {', '.join(prop_details['options'])})"
+            properties_info += f"  - {prop_name} ({prop_type}){options}\n"
+
+        database_descriptions = f"- {db_name} ({title}): {single_db_schema['description']}{properties_info}\n"
 
         # テンプレートのプレースホルダーを置換
         instruction = self.system_instruction_template.replace("{database_descriptions}", database_descriptions)
         instruction = instruction.replace("{current_date}", current_date)
         return instruction
 
+    def _build_response_generation_instruction(self) -> str:
+        """【ステップ3: 応答生成】用のシステムプロンプトを構築します。"""
+        return "あなたは親切なアシスタントです。ユーザーの質問とツールの実行結果を元に、自然で分かりやすい日本語の文章で回答を生成してください。"
+
+    # ---------------------------------------------------------------------------
+    # 内部ヘルパーメソッド
+    # ---------------------------------------------------------------------------
     def _sanitize_arg(self, arg: Any) -> Any:
-        """
-        Gemini APIから渡される特殊な型（Protobuf）を、Pythonの標準型に変換します。
-
-        何をやっているか:
-        Google GenAI SDKのFunction Calling機能は、引数を `MapComposite` や `RepeatedComposite` という
-        Protobuf由来の特殊なクラスで渡してくることがあります。
-        これらはそのままでは `json.dumps` したり、通常の辞書として扱ったりする際に不具合が起きる場合があるため、
-        再帰的に `dict` や `list` に変換します。
-
-        Args:
-            arg (Any): 変換対象のオブジェクト。
-
-        Returns:
-            Any: 変換後のPython標準オブジェクト（dict, list, str, int, etc.）。
-        """
-        # 型名での判定（protobufライブラリを直接importせずに済むように）
         type_name = type(arg).__name__
-
-        # MapCompositeはdictに変換
         if type_name == 'MapComposite':
             return {k: self._sanitize_arg(v) for k, v in arg.items()}
-        # RepeatedCompositeはlistに変換
         elif type_name == 'RepeatedComposite':
             return [self._sanitize_arg(v) for v in arg]
-        # 辞書の場合は再帰的に処理
         elif isinstance(arg, dict):
             return {k: self._sanitize_arg(v) for k, v in arg.items()}
-        # リストの場合も再帰的に処理
         elif isinstance(arg, list):
             return [self._sanitize_arg(v) for v in arg]
-
         return arg
 
     def _wrap_tool(self, tool: Callable) -> Callable:
-        """
-        ツール関数をラップし、引数のサニタイズ処理を挟み込みます。
-
-        何をやっているか:
-        デコレータパターンを使用して、元のツール関数が呼ばれる直前に `_sanitize_arg` を
-        全ての引数に対して実行するようにします。
-
-        なぜやっているか:
-        個々のツール（NotionAdapterのメソッド）側でGemini特有の型変換を意識させないためです。
-        """
         @functools.wraps(tool)
         def wrapper(*args, **kwargs):
             sanitized_args = [self._sanitize_arg(arg) for arg in args]
             sanitized_kwargs = {k: self._sanitize_arg(v) for k, v in kwargs.items()}
-            logger.debug(f"Calling tool {tool.__name__} with sanitized args: {sanitized_args}, kwargs: {sanitized_kwargs}")
             return tool(*sanitized_args, **sanitized_kwargs)
-
         return wrapper
 
-    def _get_model(self, tools: List[Callable], system_instruction: str):
-        """
-        設定済みの GenerativeModel インスタンスを生成して返します。
-        """
-        # ツール関数をラップして引数をサニタイズするようにする
+    async def _run_gemini_async(self, model: genai.GenerativeModel, prompt: Any, history: Optional[List[Dict[str, Any]]] = None):
+        """Geminiの同期SDKを非同期で安全に呼び出すラッパー。"""
+        def _run_chat():
+            chat = model.start_chat(history=history or [])
+            response = chat.send_message(prompt)
+            return response
+        try:
+            return await asyncio.to_thread(_run_chat)
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}")
+            raise
+
+    # ---------------------------------------------------------------------------
+    # ILanguageModel インターフェース実装
+    # ---------------------------------------------------------------------------
+    async def select_databases(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> List[str]:
+        system_instruction = self._build_db_selection_instruction(current_date)
+
+        select_databases_tool = FunctionDeclaration(
+            name="select_databases",
+            description="ユーザーの質問に関連するNotionデータベースを選択する",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "db_names": {
+                        "type": "array",
+                        "description": "関連するデータベース名のリスト",
+                        "items": {"type": "string"}
+                    }
+                },
+                "required": ["db_names"]
+            }
+        )
+
+        model = genai.GenerativeModel(
+            model_name=self.model_name,
+            system_instruction=system_instruction,
+            tools=[select_databases_tool]
+        )
+
+        logger.info("Step 1: Selecting databases...")
+        response = await self._run_gemini_async(model, user_utterance, history)
+
+        selected_dbs = []
+        if response.function_calls:
+            for func_call in response.function_calls:
+                if func_call.name == "select_databases":
+                    sanitized_args = self._sanitize_arg(func_call.args)
+                    selected_dbs.extend(sanitized_args.get("db_names", []))
+
+        logger.info(f"Selected databases: {selected_dbs}")
+        return selected_dbs
+
+    async def generate_tool_calls(
+        self, user_utterance: str, current_date: str, tools: List[Callable],
+        single_db_schema: Dict[str, Any], history: List[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        system_instruction = self._build_tool_generation_instruction(current_date, single_db_schema)
         wrapped_tools = [self._wrap_tool(t) for t in tools]
 
-        return genai.GenerativeModel(
-            model_name='gemini-2.0-flash-lite',
+        model = genai.GenerativeModel(
+            model_name=self.model_name,
             tools=wrapped_tools,
             system_instruction=system_instruction
         )
 
-    async def chat_with_tools(self, user_utterance: str, current_date: str, tools: List[Callable], history: List[Dict[str, Any]] = None) -> str:
-        """
-        ツール（Function Calling）を使用してユーザーと会話を行い、最終的な応答を生成します。
+        logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}'...")
+        response = await self._run_gemini_async(model, user_utterance, history)
 
-        何をやっているか:
-        1. システムプロンプトを構築します。
-        2. Geminiモデルを初期化し、ツールを登録します。
-        3. `model.start_chat` でチャットセッションを開始します。過去の履歴がある場合は渡します。
-        4. `send_message` を呼び出してユーザーの発言を送信します。
-           `enable_automatic_function_calling=True` を指定することで、
-           モデルが必要と判断したツール呼び出しをSDK内部で自動的に実行・結果取得・再生成のループを行います。
-        5. 最終的なテキスト応答を返します。
+        tool_calls = []
+        if response.function_calls:
+            for func_call in response.function_calls:
+                tool_calls.append({
+                    "name": func_call.name,
+                    "args": self._sanitize_arg(func_call.args)
+                })
 
-        Args:
-            user_utterance (str): ユーザーの入力テキスト。
-            current_date (str): 現在日付。
-            tools (List[Callable]): 使用可能なツール関数のリスト。
-            history (List[Dict[str, Any]]): 過去の会話履歴。
+        logger.info(f"Generated tool calls: {tool_calls}")
+        return tool_calls
 
-        Returns:
-            str: モデルからの最終応答テキスト。
-        """
-        system_instruction = self._build_system_instruction(current_date)
-        model = self._get_model(tools, system_instruction)
+    async def generate_response(
+        self, user_utterance: str, tool_results: List[Dict[str, Any]], history: List[Dict[str, Any]] = None
+    ) -> str:
+        system_instruction = self._build_response_generation_instruction()
+        model = genai.GenerativeModel(model_name=self.model_name, system_instruction=system_instruction)
 
-        # 履歴がNoneの場合は空リストにする
-        history_list = history if history else []
+        # ツール実行結果を会話履歴形式に変換してプロンプトに含める
+        prompt_history = history or []
+        prompt_history.append({"role": "user", "parts": [user_utterance]})
 
-        logger.info(f"Starting chat with tools. User Utterance: {user_utterance}. History Length: {len(history_list)}")
+        # tool_resultsをモデルに理解できる形式に変換
+        tool_feedback = []
+        for result in tool_results:
+            tool_feedback.append(
+                genai.protos.Part(
+                    function_response=genai.protos.FunctionResponse(
+                        name=result["name"],
+                        response={"content": json.dumps(result["result"], ensure_ascii=False)}
+                    )
+                )
+            )
 
-        # 同期メソッドを非同期実行するためのラッパー関数
-        def _run_chat():
-            # enable_automatic_function_calling=True により、ツール実行の往復（Turn）は
-            # SDKが内部で処理してくれます。開発者は1回の呼び出しで最終結果を得られます。
-            chat = model.start_chat(history=history_list, enable_automatic_function_calling=True)
-            response = chat.send_message(user_utterance)
-            return response.text
+        logger.info("Step 3: Generating final response...")
+        # ユーザー発言、ツールコール（履歴内）、ツール結果をすべて渡す
+        response = await self._run_gemini_async(model, tool_feedback, prompt_history)
 
-        try:
-            # Google GenAI SDKのメソッドは同期（ブロッキング）処理を行うため、
-            # イベントループをブロックしないように別スレッドで実行します。
-            # これにより 'Event loop is closed' エラーやタイムアウトを回避します。
-            response_text = await asyncio.to_thread(_run_chat)
-            logger.info(f"Received response from Gemini:\n{response_text}")
-            return response_text
-        except Exception as e:
-            msg = f"Gemini API error in chat_with_tools: {e}"
-            logger.error(msg)
-            # エラー発生時は、そのままエラー内容をユーザーに伝える（デバッグ容易性のため）
-            return f"申し訳ありません、エラーが発生しました: {e}"
+        logger.info(f"Final response text: {response.text}")
+        return response.text
