@@ -140,11 +140,13 @@ class GeminiAdapter(ILanguageModel):
         response = await self._run_gemini_async(model, user_utterance, history)
 
         selected_dbs = []
-        if response.function_calls:
-            for func_call in response.function_calls:
-                if func_call.name == "select_databases":
-                    sanitized_args = self._sanitize_arg(func_call.args)
-                    selected_dbs.extend(sanitized_args.get("db_names", []))
+        # レスポンスのpartsから関数呼び出しを抽出する
+        if hasattr(response, 'parts'):
+            for part in response.parts:
+                if fn := part.function_call:
+                    if fn.name == "select_databases":
+                        sanitized_args = self._sanitize_arg(fn.args)
+                        selected_dbs.extend(sanitized_args.get("db_names", []))
 
         logger.info(f"Selected databases: {selected_dbs}")
         return selected_dbs
@@ -166,12 +168,14 @@ class GeminiAdapter(ILanguageModel):
         response = await self._run_gemini_async(model, user_utterance, history)
 
         tool_calls = []
-        if response.function_calls:
-            for func_call in response.function_calls:
-                tool_calls.append({
-                    "name": func_call.name,
-                    "args": self._sanitize_arg(func_call.args)
-                })
+        # レスポンスのpartsから関数呼び出しを抽出する
+        if hasattr(response, 'parts'):
+            for part in response.parts:
+                if fn := part.function_call:
+                    tool_calls.append({
+                        "name": fn.name,
+                        "args": self._sanitize_arg(fn.args)
+                    })
 
         logger.info(f"Generated tool calls: {tool_calls}")
         return tool_calls
