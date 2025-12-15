@@ -1,0 +1,49 @@
+{
+    "db_id": "__MEAL_DIARY_DB_ID__",
+    "description": "ユーザーが食べた食事の記録を管理するデータベースです。「何を食べたか」「いつ（日付）」「分類（朝/昼/夜/間食）」「どこで」を記録します。画像がある場合はそのURLも保存します。",
+    "schema_json": {
+        "食べたもの": {
+            "id": "title",
+            "name": "食べたもの",
+            "type": "title",
+            "title": {}
+        },
+        "日付": {
+            "id": "date",
+            "name": "日付",
+            "type": "date",
+            "date": {}
+        },
+        "分類": {
+            "id": "category",
+            "name": "分類",
+            "type": "select",
+            "select": {
+                "options": [
+                    {"name": "朝", "color": "blue"},
+                    {"name": "昼", "color": "green"},
+                    {"name": "夜", "color": "purple"},
+                    {"name": "間食", "color": "yellow"}
+                ]
+            }
+        },
+        "場所": {
+            "id": "place",
+            "name": "場所",
+            "type": "rich_text",
+            "rich_text": {}
+        },
+        "画像URL": {
+            "id": "image_url",
+            "name": "画像URL",
+            "type": "url",
+            "url": {}
+        },
+        "メモ": {
+            "id": "memo",
+            "name": "メモ",
+            "type": "rich_text",
+            "rich_text": {}
+        }
+    }
+}

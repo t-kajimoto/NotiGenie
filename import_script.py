@@ -41,7 +41,7 @@ def import_schemas_to_firestore():
         collection_ref = db.collection('notion_schemas')
         print(f"Successfully connected to Firestore database: {database_id}")
 
-        import_dir = 'firestore_import_data'
+        import_dir = 'firestore_import_data/notion_schemas'
         json_files = [f for f in os.listdir(import_dir) if f.endswith('.json')]
 
         if not json_files:
