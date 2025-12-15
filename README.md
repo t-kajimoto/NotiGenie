@@ -1,33 +1,59 @@
 # NotiGenie
-Notionと音声で連携するアプリ
 
-## アーキテクチャ (v1.1)
-Raspberry Pi と Cloud Functions を組み合わせたアーキテクチャを採用しています。
-詳細は `docs/architecture.md` を参照してください。
+[![CI/CD for Cloud Functions](https://github.com/notigenie/NotiGenie/actions/workflows/cloud_functions_ci.yml/badge.svg)](https://github.com/notigenie/NotiGenie/actions/workflows/cloud_functions_ci.yml)
+[![CI for Raspberry Pi](https://github.com/notigenie/NotiGenie/actions/workflows/raspberry_pi_ci.yml/badge.svg)](https://github.com/notigenie/NotiGenie/actions/workflows/raspberry_pi_ci.yml)
 
-### ディレクトリ構成
-- `cloud_functions/`: バックエンドロジック (LINE Bot, Notion API, Gemini)
-- `raspberry_pi/`: クライアントロジック (Wake Word, STT, TTS)
-- `docs/`: 設計ドキュメント
+**NotiGenie (ノティジーニー)** は、音声やテキストでNotionデータベースを操作できるAIアシスタントです。
+Raspberry Piによる音声操作、またはLINE Botによるテキスト操作に対応しています。
 
-### セットアップ
+![NotiGenie Demo](https://user-images.githubusercontent.com/12345/your-demo-image.gif)
+*(デモ画像や動画をここに挿入)*
 
-#### Cloud Functions
-`cloud_functions/` ディレクトリ配下をデプロイします。
-`config.yaml` でNotionデータベースのマッピングを定義します。
+## ✨ 主な機能
 
-環境変数として以下が必要です：
-- `GEMINI_API_KEY`: Google Gemini APIキー
-- `NOTION_API_KEY`: Notion Integration Token
-- `LINE_CHANNEL_ACCESS_TOKEN`: (Optional) LINE Bot用
-- `LINE_CHANNEL_SECRET`: (Optional) LINE Bot用
+- **音声によるNotion操作**: 「買い物リストに牛乳を追加して」のように話しかけるだけで、Notionのデータベースにアイテムを追加・更新・検索できます。
+- **マルチモーダル対応**: Raspberry Piを使った音声インターフェースと、LINE Botを使ったテキストインターフェースの両方で利用可能です。
+- **高度な自然言語理解**: GoogleのGeminiモデルを利用し、曖昧な指示でも意図を汲み取って適切な操作を実行します。
+- **柔軟なデータベース連携**: Firestoreにスキーマを登録するだけで、様々なNotionデータベースに対応させることができます。
 
-#### Raspberry Pi
-`raspberry_pi/` ディレクトリ配下でアプリケーションを実行します。
-`.env` ファイルに以下を設定してください：
-- `PICOVOICE_ACCESS_KEY`: Picovoice Access Key
-- `CLOUD_FUNCTIONS_URL`: デプロイしたCloud FunctionsのURL
-- `GOOGLE_APPLICATION_CREDENTIALS`: Google Cloud Service Account Key (JSON path)
+## 📖 使い方
 
-### テスト
-`pytest` を実行して、ビジネスロジックのテストを行います。
+### Raspberry Piの場合
+1. 「ねぇ、ジニー」とウェイクワードを呼びかけます。
+2. LEDが点灯したら、用件を話しかけます。（例：「今日のタスクを教えて」）
+3. NotiGenieがNotionデータベースを操作し、結果を音声で返します。
+
+### LINEの場合
+1. NotiGenieのLINE公式アカウントを友達追加します。
+2. テキストメッセージで用件を送ります。（例：「読書リストに新しい本を追加」）
+3. NotiGenieがNotionを操作し、結果をテキストで返します。
+
+## 🛠️ アーキテクチャと設計
+本システムは、クライアント（Raspberry Pi / LINE）とバックエンド（Google Cloud Functions）で構成されています。
+バックエンドではクリーンアーキテクチャを採用し、LLMのFunction Calling機能を活用してNotion APIと連携しています。
+
+より詳細な設計情報については、以下のドキュメントを参照してください。
+
+- **[アーキテクチャ設計書](./docs/architecture.md)**: システム全体の構成図と各コンポーネントの役割について説明しています。
+- **[Function Calling設計書](./docs/functions.md)**: LLMが使用するツール（関数）の詳細と、Notion APIとの対応関係について説明しています。
+- **[開発・運用ガイド](./docs/development.md)**: デプロイ手順や、新しいNotionデータベースを連携させる方法について説明しています。
+
+## 🚀 自分の環境へのデプロイ
+このプロジェクトを自身の環境にデプロイする方法は、**[開発・運用ガイド](./docs/development.md)** を参照してください。
+ガイドには、以下の内容が含まれています。
+- 必要なGoogle Cloudプロジェクトのセットアップ
+- IAMロールの設定
+- 必要なAPIキーと環境変数
+- GitHub Actionsを使った自動デプロイの方法
+
+## ディレクトリ構成
+```
+.
+├── .github/workflows/      # CI/CDワークフロー
+├── cloud_functions/        # バックエンド (Google Cloud Functions)
+│   └── core/               # クリーンアーキテクチャのコア層
+├── raspberry_pi/           # クライアント (Raspberry Pi)
+├── docs/                   # 設計ドキュメント
+├── tests/                  # 各種テストコード
+└── README.md
+```
