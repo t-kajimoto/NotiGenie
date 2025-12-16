@@ -19,7 +19,13 @@ def mock_notion_repository():
     # テスト用にダミーのスキーマ情報を持たせる
     mock.notion_database_mapping = {
         "todo_list": {"id": "todo_list", "description": "タスク管理DB", "properties": {}},
-        "diary": {"id": "diary", "description": "日記DB", "properties": {}}
+        "diary": {"id": "diary", "description": "日記DB", "properties": {}},
+        "meal_diary": {"id": "meal_diary_db_id", "description": "食事記録DB", "properties": {
+            "食べたもの": {"type": "title"},
+            "日付": {"type": "date"},
+            "分類": {"type": "select"},
+            "場所": {"type": "rich_text"}
+        }}
     }
     # 各ツールもモック化
     mock.search_database = MagicMock(return_value={"result": "searched"})
@@ -146,3 +152,54 @@ async def test_execute_multiple_dbs_selected(
     # generate_responseに渡されたtool_results引数の長さを確認
     args, _ = mock_language_model.generate_response.await_args
     assert len(args[1]) == 2 # args[1] は tool_results
+
+@pytest.mark.asyncio
+async def test_execute_meal_diary_creation(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """食事日記: 新規ページ作成のシナリオをテスト"""
+    # --- Arrange ---
+    user_utterance = "昨日の夜、家でカレーを食べた"
+    current_date = "2024-01-01"
+
+    # Step 1: DB選択
+    mock_language_model.select_databases.return_value = ["meal_diary"]
+
+    # Step 2: ツールコール生成
+    expected_properties = {
+        "食べたもの": "カレー",
+        "日付": "2023-12-31", # "昨日"を解釈
+        "分類": "夜",
+        "場所": "家"
+    }
+    mock_language_model.generate_tool_calls.return_value = [
+        {
+            "name": "create_page",
+            "args": {
+                "database_name": "meal_diary",
+                "properties": expected_properties
+            }
+        }
+    ]
+
+    # Step 3: 応答生成
+    mock_language_model.generate_response.return_value = "食事内容を記録しました。"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    # 1. DB選択が呼ばれたか
+    mock_language_model.select_databases.assert_awaited_once()
+
+    # 2. ツールコール生成が呼ばれたか
+    mock_language_model.generate_tool_calls.assert_awaited_once()
+
+    # 3. Notionのcreate_pageが期待通りの引数で呼ばれたか
+    mock_notion_repository.create_page.assert_called_once_with(
+        database_name="meal_diary",
+        properties=expected_properties
+    )
+
+    # 4. 最終応答が正しいか
+    assert final_response == "食事内容を記録しました。"
