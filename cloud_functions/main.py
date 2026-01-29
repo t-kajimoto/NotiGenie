@@ -55,6 +55,20 @@ def load_prompts() -> str:
         logger.warning(f"{prompt_path} not found.")
         return "You are a helpful assistant managing Notion databases. Today is {current_date}. Databases: {database_descriptions}"
 
+def load_help_message() -> str:
+    """
+    ヘルプメッセージをファイルから読み込みます。
+    """
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    help_path = os.path.join(base_path, "prompts/help_message.md")
+    
+    if os.path.exists(help_path):
+        with open(help_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    else:
+        logger.warning(f"{help_path} not found.")
+        return "ヘルプファイルが見つかりません。管理者に連絡してください。"
+
 
 # ---------------------------------------------------------------------------
 # 依存性の注入 (Dependency Injection) と初期化
@@ -70,6 +84,7 @@ try:
     firestore_adapter = FirestoreAdapter()
     schemas_data = firestore_adapter.load_notion_schemas()
     system_instruction = load_prompts()
+    help_message = load_help_message()
 
     # 2. ゲートウェイ（外部サービスへのアダプター）の初期化
     #    - 取得したスキーマ情報を、GeminiとNotionのアダプターに渡します。
@@ -95,7 +110,8 @@ try:
     process_message_use_case = ProcessMessageUseCase(
         language_model=gemini_adapter,
         notion_repository=notion_adapter,
-        session_repository=firestore_adapter
+        session_repository=firestore_adapter,
+        help_message=help_message
     )
 
     # 3. コントローラーの初期化

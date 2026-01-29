@@ -12,15 +12,21 @@ class ProcessMessageUseCase:
     3ステップの思考プロセス（DB選択→ツール生成→応答生成）を実装します。
     """
 
-    def __init__(self, language_model: ILanguageModel, notion_repository: INotionRepository, session_repository: ISessionRepository):
+    def __init__(self, language_model: ILanguageModel, notion_repository: INotionRepository, session_repository: ISessionRepository, help_message: str = ""):
         self.language_model = language_model
         self.notion_repository = notion_repository
         self.session_repository = session_repository
+        self.help_message = help_message
         # NotionAdapterが持つDBスキーマ情報を取得しておく
         self.db_schemas = getattr(notion_repository, 'notion_database_mapping', {})
 
     async def execute(self, user_utterance: str, current_date: str, session_id: str = "default") -> str:
         try:
+            # ヘルプ機能: 特定のキーワードでヘルプメッセージを返す
+            if user_utterance.strip().lower() in ["help", "ヘルプ", "へるぷ"]:
+                logger.info("Help keyword detected. Returning help message.")
+                return self.help_message
+
             # セッション履歴を取得
             history = self.session_repository.get_recent_history(session_id, limit_minutes=SESSION_HISTORY_LIMIT_MINUTES)
 

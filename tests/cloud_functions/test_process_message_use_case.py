@@ -46,8 +46,27 @@ def use_case(mock_language_model, mock_notion_repository, mock_session_repositor
     return ProcessMessageUseCase(
         language_model=mock_language_model,
         notion_repository=mock_notion_repository,
-        session_repository=mock_session_repository
+        session_repository=mock_session_repository,
+        help_message="ヘルプメッセージです"
     )
+
+@pytest.mark.asyncio
+async def test_execute_help_keyword(use_case, mock_language_model):
+    """ヘルプキーワードが入力された場合、即座にヘルプメッセージを返す"""
+    # --- Arrange ---
+    user_utterances = ["help", "ヘルプ", "へるぷ", " HELP ", "ヘルプ  "]
+    current_date = "2023-10-27"
+    session_id = "test_session"
+
+    for utterance in user_utterances:
+        # --- Act ---
+        response = await use_case.execute(utterance, current_date, session_id)
+
+        # --- Assert ---
+        assert response == "ヘルプメッセージです"
+        # 外部APIは呼ばれないこと
+        mock_language_model.select_databases.assert_not_called()
+        mock_language_model.select_databases.reset_mock()
 
 @pytest.mark.asyncio
 async def test_execute_single_db_success_flow(
