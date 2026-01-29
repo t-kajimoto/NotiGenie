@@ -3,13 +3,15 @@ services:
     build: .
     env_file:
       - .env
+    privileged: true # Allow access to GPIO/SPI
+    volumes:
+      - .:/app
     devices:
       - "/dev/snd:/dev/snd" # Access to microphone and speakers
     depends_on:
       - voicevox_core
 
   voicevox_core:
-    image: voicevox/voicevox_core:latest
     # Note: voicevox_core image might need specific configuration or a different image depending on the exact version/setup intended (e.g., cpu vs gpu).
     # The requirement mentioned "VOICEVOX (Core/Docker)". Assuming a standard compatible image.
     # Actually, official voicevox/voicevox_engine might be what's usually used for HTTP API.

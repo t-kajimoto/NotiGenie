@@ -19,11 +19,49 @@ API_KEY_ENV = "NOTIGENIE_API_KEY"
 # フォント設定 (Raspberry Piの標準的な日本語フォントパス)
 FONT_PATH = "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf"
 if not os.path.exists(FONT_PATH):
+    # Docker (Debian/Ubuntu) default for fonts-noto-cjk
+    if os.path.exists("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"):
+        FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
     # フォールバック (Mac/Windows開発用)
-    if sys.platform == "darwin":
+    elif sys.platform == "darwin":
         FONT_PATH = "/System/Library/Fonts/Hiragino Sans GB.ttc"
     elif sys.platform == "win32":
         FONT_PATH = "C:\\Windows\\Fonts\\msgothic.ttc"
+
+# Sample Data for Mock/Testing
+SAMPLE_DATA = {
+    "query_date": "2026-01-30",
+    "todos": [
+        {
+            "name": "謎解きデートに行く",
+            "deadline": "2026-02-28",
+            "display_date": "2月中",
+            "memo": "地下謎への招待状2026 (開催中) http://example.com/very/long/url..."
+        },
+        {
+            "name": "部屋の掃除",
+            "deadline": "2026-01-31",
+            "display_date": "今週中",
+            "memo": ""
+        },
+        {
+            "name": "牛乳を買う",
+            "deadline": "2026-01-30",
+            "display_date": "今日",
+            "memo": "低脂肪乳"
+        }
+    ],
+    "dones": [
+        {
+            "name": "燃えるゴミ出し",
+            "done_date": "2026-01-30"
+        },
+        {
+            "name": "銀行振込",
+            "done_date": "2026-01-29"
+        }
+    ]
+}
 
 def get_todo_data(api_url, api_key):
     """APIからToDoデータを取得する"""
@@ -128,16 +166,21 @@ def main():
     args = parser.parse_args()
 
     api_key = args.api_key or os.environ.get(API_KEY_ENV)
-    if not api_key:
-        logger.error("API Key is required. Set NOTIGENIE_API_KEY env or use --api-key.")
-        return
-
+    
     # 1. データ取得
-    logger.info("Fetching data...")
-    data = get_todo_data(args.api_url, api_key)
-    if not data:
-        logger.error("No data received.")
-        return
+    if args.mock:
+        logger.info("Mock mode: Using SAMPLE_DATA")
+        data = SAMPLE_DATA
+    else:
+        if not api_key:
+            logger.error("API Key is required. Set NOTIGENIE_API_KEY env or use --api-key.")
+            return
+
+        logger.info("Fetching data...")
+        data = get_todo_data(args.api_url, api_key)
+        if not data:
+            logger.error("No data received.")
+            return
 
     # 2. 画像生成
     logger.info("Generating image...")
@@ -146,7 +189,7 @@ def main():
     # 3. 表示更新
     if args.mock:
         logger.info("Mock mode: Saving image to 'epaper_output.png'")
-        image.save("raspberry_pi/epaper_output.png") # Changed from local to subdir
+        image.save("epaper_output.png")
     else:
         try:
             logger.info("Initializing E-paper...")
