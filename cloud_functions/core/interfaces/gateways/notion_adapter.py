@@ -174,7 +174,8 @@ class NotionAdapter(INotionRepository):
             elif prop_type == "number":
                  try:
                      formatted_props[prop_name] = {"number": float(value)}
-                 except:
+                 except (ValueError, TypeError) as e:
+                     logger.warning(f"Failed to convert '{value}' to number for property '{prop_name}': {e}")
                      formatted_props[prop_name] = value
 
             elif prop_type == "url":

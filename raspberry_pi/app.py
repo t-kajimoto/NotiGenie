@@ -13,6 +13,7 @@ load_dotenv()
 # Configuration
 PICOVOICE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
 CLOUD_FUNCTIONS_URL = os.getenv("CLOUD_FUNCTIONS_URL")
+NOTIGENIE_API_KEY = os.getenv("NOTIGENIE_API_KEY")
 
 def main():
     """
@@ -92,8 +93,11 @@ def main():
                     "text": text,
                     "date": datetime.datetime.now().strftime("%Y-%m-%d")
                 }
+                headers = {}
+                if NOTIGENIE_API_KEY:
+                    headers["X-API-Key"] = NOTIGENIE_API_KEY
                 try:
-                    response = requests.post(CLOUD_FUNCTIONS_URL, json=payload)
+                    response = requests.post(CLOUD_FUNCTIONS_URL, json=payload, headers=headers)
                     response.raise_for_status()
                     response_data = response.json()
 

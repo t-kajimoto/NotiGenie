@@ -3,10 +3,16 @@ name: Cloud Functions CI
 on:
   pull_request:
     paths:
-      - 'cloud_functions/**'
-      - 'tests/cloud_functions/**'
-      - 'tests/conftest.py'
-      - '.github/workflows/cloud_functions_ci.yml'
+      - "cloud_functions/**"
+      - "tests/cloud_functions/**"
+      - "tests/conftest.py"
+      - "pyproject.toml"
+      - ".github/workflows/cloud_functions_ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "cloud_functions/**"
 
 jobs:
   test:
@@ -17,22 +23,40 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r cloud_functions/requirements.txt
-          pip install pytest pytest-asyncio pytest-mock flake8
+          pip install pytest pytest-asyncio pytest-mock pytest-cov flake8
 
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 cloud_functions --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          # exit-zero treats all errors as warnings
           flake8 cloud_functions --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          # We only run tests relevant to cloud functions.
-          pytest tests/cloud_functions/
+          pytest tests/cloud_functions/ -v \
+            --cov=cloud_functions \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=70 \
+            --tb=short
+        env:
+          GEMINI_API_KEY: dummy
+          NOTION_API_KEY: dummy
+          LINE_CHANNEL_ACCESS_TOKEN: dummy
+          LINE_CHANNEL_SECRET: dummy
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true

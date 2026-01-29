@@ -1,14 +1,28 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 import json
-import cloud_functions.main as cf_main
-from linebot.v3.exceptions import InvalidSignatureError
+
+# LINE SDKがインストールされているかチェック
+try:
+    import linebot
+    from linebot.v3.exceptions import InvalidSignatureError
+    HAS_LINEBOT = True
+except ImportError:
+    HAS_LINEBOT = False
+    InvalidSignatureError = Exception  # ダミー
+
 from werkzeug.exceptions import BadRequest
+
+pytestmark = pytest.mark.skipif(not HAS_LINEBOT, reason="line-bot-sdk not installed")
 
 class TestCloudFunctionMain:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
+        # モジュールをインポート（LINE SDKがある場合のみこのfixtureが実行される）
+        import cloud_functions.main as cf_main
+        self.cf_main = cf_main
+
         # Patch the global handlers in the main module
         # Note: In the new architecture, these are 'line_controller' and 'process_message_use_case'
         self.mock_line_controller = MagicMock()
@@ -28,7 +42,7 @@ class TestCloudFunctionMain:
         req.get_data.return_value = "body"
 
         # Execute
-        resp = await cf_main.main_logic(req)
+        resp = await self.cf_main.main_logic(req)
 
         assert resp == "OK"
         self.mock_line_controller.handle_request.assert_awaited_with("body", "sig")
@@ -45,7 +59,7 @@ class TestCloudFunctionMain:
 
         # Execute and Assert
         with pytest.raises(BadRequest):
-            await cf_main.main_logic(req)
+            await self.cf_main.main_logic(req)
 
     @pytest.mark.asyncio
     async def test_rpi_request_success(self):
@@ -59,7 +73,7 @@ class TestCloudFunctionMain:
         req.get_data.return_value = None
 
         # Execute
-        resp = await cf_main.main_logic(req)
+        resp = await self.cf_main.main_logic(req)
 
         # Verify
         resp_json = json.loads(resp)
@@ -78,7 +92,7 @@ class TestCloudFunctionMain:
         req.get_json.return_value = {"text": "hello"}
 
         # Execute
-        resp = await cf_main.main_logic(req) # main returns (json, 500) on error
+        resp = await self.cf_main.main_logic(req) # main returns (json, 500) on error
 
         assert isinstance(resp, tuple)
         assert resp[1] == 500
@@ -87,10 +101,10 @@ class TestCloudFunctionMain:
     @pytest.mark.asyncio
     async def test_config_error(self, mocker):
         # Test case where handlers are None (e.g. init failed)
-        mocker.patch.object(cf_main, "process_message_use_case", None)
+        mocker.patch.object(self.cf_main, "process_message_use_case", None)
 
         req = MagicMock()
-        resp = await cf_main.main_logic(req)
+        resp = await self.cf_main.main_logic(req)
         # main returns "Server Internal Configuration Error...", 500
         assert isinstance(resp, tuple)
         assert resp[1] == 500

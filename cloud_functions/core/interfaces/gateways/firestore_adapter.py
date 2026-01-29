@@ -3,9 +3,15 @@ import os
 from google.cloud import firestore
 from typing import List, Dict, Any
 from ...domain.interfaces import ISessionRepository
-import logging
+from ...config import (
+    SESSION_HISTORY_LIMIT_MINUTES,
+    SESSION_MAX_HISTORY_LENGTH,
+    FIRESTORE_SESSION_COLLECTION,
+    FIRESTORE_SCHEMA_COLLECTION,
+)
+from ...logging_config import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class FirestoreAdapter(ISessionRepository):
     """
@@ -22,8 +28,8 @@ class FirestoreAdapter(ISessionRepository):
             database_id = os.environ.get("FIRESTORE_DATABASE") or "(default)"
             # database引数はgoogle-cloud-firestore >= 2.0.0 で利用可能
             self.db = firestore.Client(database=database_id)
-            self.session_collection_name = "conversations"
-            self.schema_collection_name = "notion_schemas"
+            self.session_collection_name = FIRESTORE_SESSION_COLLECTION
+            self.schema_collection_name = FIRESTORE_SCHEMA_COLLECTION
             logger.info(f"Initialized Firestore Client with database: {database_id}")
         except Exception as e:
             logger.error(f"Failed to initialize Firestore Client: {e}")
@@ -122,35 +128,63 @@ class FirestoreAdapter(ISessionRepository):
         """
         新しいユーザー発言とAIの応答を履歴に追加します。
         ドキュメントサイズの肥大化を防ぐため、最新の20ターン（40要素）のみを保持します。
+
+        Firestoreトランザクションを使用して、読み取り→書き込みをアトミックに処理し、
+        同時リクエストによる競合状態を防ぎます。
         """
         if not self.db:
             return
 
-        try:
-            doc_ref = self.db.collection(self.session_collection_name).document(session_id)
+        doc_ref = self.db.collection(self.session_collection_name).document(session_id)
 
-            # 5分（デフォルト）で期限切れチェックを行い、有効な履歴のみを取得
-            current_history = self.get_recent_history(session_id, limit_minutes=5)
+        @firestore.transactional
+        def update_in_transaction(transaction, doc_ref):
+            # トランザクション内で読み取り
+            doc = doc_ref.get(transaction=transaction)
 
+            current_history = []
+            if doc.exists:
+                data = doc.to_dict()
+                updated_at = data.get("updated_at")
+
+                # 期限切れチェック
+                if updated_at:
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    if updated_at.tzinfo is None:
+                        updated_at = updated_at.replace(tzinfo=datetime.timezone.utc)
+                    diff = now - updated_at
+
+                    if diff.total_seconds() <= (SESSION_HISTORY_LIMIT_MINUTES * 60):
+                        # 有効な履歴のみ抽出
+                        history = data.get("history", [])
+                        for item in history:
+                            if isinstance(item, dict) and 'role' in item and 'parts' in item:
+                                current_history.append(item)
+
+            # 新しい履歴を追加
             new_history = current_history + [
                 {"role": "user", "parts": [user_message]},
                 {"role": "model", "parts": [model_response]}
             ]
 
-            # 履歴の長さを制限（最新の40要素 = 20ターン分のみ保持）
-            # Geminiは大量のコンテキストを扱えますが、Firestoreの1MB制限と
-            # 課金（読み込みデータ量ではないが、処理効率）を考慮して制限を設けます。
-            max_history_length = 40
+            # 履歴の長さを制限
+            max_history_length = SESSION_MAX_HISTORY_LENGTH
             if len(new_history) > max_history_length:
                 new_history = new_history[-max_history_length:]
 
-            data = {
+            # トランザクション内で書き込み
+            transaction.set(doc_ref, {
                 "history": new_history,
                 "updated_at": firestore.SERVER_TIMESTAMP
-            }
+            })
 
-            doc_ref.set(data)
-            logger.info(f"Updated history for session {session_id}. Count: {len(new_history)}")
+            return len(new_history)
+
+        try:
+            transaction = self.db.transaction()
+            count = update_in_transaction(transaction, doc_ref)
+            logger.info(f"Updated history for session {session_id}. Count: {count}")
 
         except Exception as e:
             logger.error(f"Error saving history to Firestore: {e}")
+

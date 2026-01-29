@@ -73,13 +73,14 @@ class INotionRepository(ABC):
     """
 
     @abstractmethod
-    def search_database(self, query: str, database_name: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+    def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         データベースからページを検索します。
 
         Args:
-            query (str): 検索キーワード
-            database_name (Optional[str]): データベース名（指定がない場合は全データベース、または適切なものを選択）
+            query (Optional[str]): 検索キーワード（タイトル部分一致）
+            database_name (Optional[str]): データベース名（指定がない場合は全データベース検索）
+            filter_conditions (Optional[str]): JSON形式の絞り込み条件（例: '{"Status": "Done"}'）
 
         Returns:
             Union[List[Dict[str, Any]], Dict[str, Any]]: 検索結果のリスト、またはエラー時の辞書。

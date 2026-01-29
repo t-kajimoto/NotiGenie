@@ -1,9 +1,10 @@
 from ..domain.interfaces import ILanguageModel, INotionRepository, ISessionRepository
-import logging
+from ..config import SESSION_HISTORY_LIMIT_MINUTES
+from ..logging_config import setup_logger
 import asyncio
 from typing import Dict, Any
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class ProcessMessageUseCase:
     """
@@ -21,7 +22,7 @@ class ProcessMessageUseCase:
     async def execute(self, user_utterance: str, current_date: str, session_id: str = "default") -> str:
         try:
             # セッション履歴を取得
-            history = self.session_repository.get_recent_history(session_id, limit_minutes=5)
+            history = self.session_repository.get_recent_history(session_id, limit_minutes=SESSION_HISTORY_LIMIT_MINUTES)
 
             # --- ステップ1: データベース選択 ---
             selected_db_names = await self.language_model.select_databases(

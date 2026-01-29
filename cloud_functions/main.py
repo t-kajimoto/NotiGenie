@@ -159,6 +159,15 @@ async def main_logic(request: Request):
 
     # 2. Raspberry Pi / 内部API リクエストの処理
     # LINE以外からのリクエスト（音声入力クライアントなど）を処理します。
+
+    # APIキー認証
+    expected_api_key = os.environ.get("NOTIGENIE_API_KEY")
+    if expected_api_key:
+        provided_api_key = request.headers.get("X-API-Key")
+        if provided_api_key != expected_api_key:
+            logger.warning("Unauthorized API request: Invalid or missing API key")
+            return "Unauthorized", 401
+
     request_json = request.get_json(silent=True)
     if request_json and "text" in request_json:
         user_utterance = request_json["text"]

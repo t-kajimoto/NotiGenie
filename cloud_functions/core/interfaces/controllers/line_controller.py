@@ -1,5 +1,5 @@
 from linebot.v3 import WebhookHandler, WebhookParser
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, PushMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import os
 import asyncio
@@ -84,6 +84,11 @@ class LineController:
         3. ユースケースを実行してAIからの応答を取得します。
         4. LINE Messaging API を使ってユーザーに応答メッセージを送信します。
 
+        タイムアウト対策:
+        - reply_tokenは30秒で期限切れになるため、25秒でタイムアウトを設定
+        - 時間内に完了すればreply_messageを使用（即座に返信）
+        - タイムアウトした場合は処理を継続し、完了後にpush_messageで送信
+
         Args:
             event: LINE SDKのMessageEventオブジェクト。
         """
@@ -97,19 +102,55 @@ class LineController:
         # サーバー（UTC）の時間ではなくユーザーの現地時間（JST）が必要だからです。
         current_date = datetime.datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%d")
 
-        try:
-            # ユースケースの実行
-            # ここでドメインロジック（AIによる判断とNotion操作）に委譲します
-            final_response_text = await self.use_case.execute(user_utterance, current_date, session_id=user_id)
+        # reply_tokenの有効期限は30秒なので、安全マージンを取って25秒
+        REPLY_TIMEOUT_SECONDS = 25
 
-            # LINEへの応答送信
-            # MessagingApiを使用して、リプライを返します
+        try:
+            # ユースケースの実行（タイムアウト付き）
+            final_response_text = await asyncio.wait_for(
+                self.use_case.execute(user_utterance, current_date, session_id=user_id),
+                timeout=REPLY_TIMEOUT_SECONDS
+            )
+
+            # 時間内に完了した場合: reply_messageを使用
             self.messaging_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=reply_token,
                     messages=[TextMessage(text=final_response_text)]
                 )
             )
+
+        except asyncio.TimeoutError:
+            # タイムアウト: 先に「処理中」をreplyで送信
+            try:
+                self.messaging_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=reply_token,
+                        messages=[TextMessage(text="処理中です。少々お待ちください...")]
+                    )
+                )
+            except Exception:
+                pass  # reply_tokenが既に期限切れの可能性
+
+            # 処理を継続し、完了後にpush_messageで送信
+            try:
+                final_response_text = await self.use_case.execute(
+                    user_utterance, current_date, session_id=user_id
+                )
+                self.messaging_api.push_message(
+                    PushMessageRequest(
+                        to=user_id,
+                        messages=[TextMessage(text=final_response_text)]
+                    )
+                )
+            except Exception as e:
+                print(f"Error in delayed processing: {e}")
+                self.messaging_api.push_message(
+                    PushMessageRequest(
+                        to=user_id,
+                        messages=[TextMessage(text="処理中にエラーが発生しました。")]
+                    )
+                )
 
         except Exception as e:
             print(f"Error processing LINE message: {e}")
@@ -125,3 +166,4 @@ class LineController:
                     )
                 except Exception as inner_e:
                     print(f"Error sending error message: {inner_e}")
+
