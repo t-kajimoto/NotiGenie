@@ -86,6 +86,9 @@ class ProcessMessageUseCase:
                     all_tool_results.append({"name": tool_name, "result": result})
 
             # --- ステップ3: 最終応答生成 ---
+            # 検索ツール(grounding)が使われた場合、その結果も含めて応答生成される
+            logger.info("Step 3: Generating final response with Autogrounding support...")
+            
             final_response = await self.language_model.generate_response(
                 user_utterance,
                 all_tool_results,

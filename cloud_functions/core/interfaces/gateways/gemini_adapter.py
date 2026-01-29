@@ -67,6 +67,15 @@ class GeminiAdapter(ILanguageModel):
         # テンプレートのプレースホルダーを置換
         instruction = self.system_instruction_template.replace("{database_descriptions}", database_descriptions)
         instruction = instruction.replace("{current_date}", current_date)
+        
+        # Groundingと新カラム対応の指示を追加
+        instruction += """
+Note for ToDo List:
+1. "Deadline" (Date): Set a concrete date for sorting (e.g., "2月中" -> 2026-02-28).
+2. "DisplayDate" (Text): Keep the user's original vague expression (e.g., "2月中", "来週").
+3. "Memo" (RichText): If the task needs research (e.g., "date ideas", "restaurant"), use the 'google_search_retrieval' tool to find info and summarize it here.
+4. "DoneDate" (Date): Only set this when marking a task as Done (check "完了ボタン"). Use today's date.
+"""
         return instruction
 
     def _build_response_generation_instruction(self) -> str:
@@ -158,13 +167,17 @@ class GeminiAdapter(ILanguageModel):
         system_instruction = self._build_tool_generation_instruction(current_date, single_db_schema)
         wrapped_tools = [self._wrap_tool(t) for t in tools]
 
+        # Google Search Groundingを有効化
+        # Function Callingと併用するためにリストに追加
+        all_tools = wrapped_tools + [{'google_search_retrieval': {}}]
+
         model = genai.GenerativeModel(
             model_name=self.model_name,
-            tools=wrapped_tools,
+            tools=all_tools,
             system_instruction=system_instruction
         )
 
-        logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}'...")
+        logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}' with Search Grounding...")
         response = await self._run_gemini_async(model, user_utterance, history)
 
         tool_calls = []

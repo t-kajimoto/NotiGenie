@@ -184,6 +184,22 @@ async def main_logic(request: Request):
             logger.warning("Unauthorized API request: Invalid or missing API key")
             return "Unauthorized", 401
 
+    # --- 新規: ToDo List API ---
+    if request.path == "/api/todo_list":
+        if request.method != "GET":
+            return "Method Not Allowed", 405
+        
+        # 依存関係の注入 (Global scope objects)
+        from api.todo_list import get_todo_list
+        try:
+            # Main logic awaits the result
+            json_response = await get_todo_list(notion_adapter, expected_api_key)
+            return json_response, 200, {'Content-Type': 'application/json'}
+        except Exception as e:
+            logger.error(f"API Error: {e}")
+            return str(e), 500
+    # ---------------------------
+
     request_json = request.get_json(silent=True)
     if request_json and "text" in request_json:
         user_utterance = request_json["text"]
