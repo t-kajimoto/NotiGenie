@@ -137,5 +137,40 @@ class TestGeminiAdapter:
         args, kwargs = gemini_adapter.client.models.generate_content.call_args
         # contentsにユーザー発言が含まれているか
         contents = kwargs['contents']
-        assert contents[-1]['role'] == 'user'
-        assert contents[-1]['parts'][0]['text'] == 'hello'
+        assert contents[-1].role == 'user'
+        assert contents[-1].parts[0].text == 'hello'
+
+    @pytest.mark.asyncio
+    async def test_convert_contents_handling(self, gemini_adapter):
+        """_convert_contents handles mixed input types correctly"""
+        # Firestoreからの古い履歴形式を含むテストデータ
+        raw_contents = [
+            # Case 1: Simple string
+            "simple string",
+            # Case 2: Dict with string parts (Old Firestore format) - The Target Fix
+            {"role": "user", "parts": ["string part"]},
+            # Case 3: Dict with dict parts (Approaching correct format)
+            {"role": "model", "parts": [{"text": "dict part"}]},
+        ]
+        
+        converted = gemini_adapter._convert_contents(raw_contents)
+        
+        assert len(converted) == 3
+        
+        # 1. Simple string -> Content(role='user', parts=[Part(text='simple string')])
+        c1 = converted[0]
+        assert isinstance(c1, types.Content)
+        assert c1.role == 'user'
+        assert c1.parts[0].text == "simple string"
+        
+        # 2. Dict with string parts -> Content(role='user', parts=[Part(text='string part')])
+        c2 = converted[1]
+        assert isinstance(c2, types.Content)
+        assert c2.role == 'user'
+        assert c2.parts[0].text == "string part"
+        
+        # 3. Dict with dict parts -> Content(role='model', parts=[Part(text='dict part')])
+        c3 = converted[2]
+        assert isinstance(c3, types.Content)
+        assert c3.role == 'model'
+        assert c3.parts[0].text == "dict part"

@@ -107,12 +107,57 @@ Note for ToDo List:
                 raise
         return wrapper
 
+    def _convert_contents(self, contents: List[Any]) -> List[types.Content]:
+        """
+        コンテンツリストを google.genai.types.Content のリストに変換・正規化します。
+        特に Firestore から取得した 'parts': ['text'] 形式を 'parts': [{'text': 'text'}] に変換します。
+        """
+        formatted_contents = []
+        for item in contents:
+            if isinstance(item, types.Content):
+                formatted_contents.append(item)
+            elif isinstance(item, dict):
+                # copy dict to avoid modifying original
+                content_dict = item.copy()
+                if 'parts' in content_dict:
+                    new_parts = []
+                    for part in content_dict['parts']:
+                        if isinstance(part, str):
+                            new_parts.append(types.Part(text=part))
+                        elif isinstance(part, dict):
+                            # Ensure dict part is compatible
+                            # SDK's types.Part is a Pydantic model, so we can unpack dict
+                            try:
+                                new_parts.append(types.Part(**part))
+                            except Exception:
+                                # Fallback if validation fails, just wrap as text
+                                new_parts.append(types.Part(text=str(part)))
+                        elif isinstance(part, types.Part):
+                            new_parts.append(part)
+                        else:
+                            # Fallback
+                            new_parts.append(types.Part(text=str(part)))
+                    content_dict['parts'] = new_parts
+                # role is required
+                if 'role' not in content_dict:
+                    content_dict['role'] = 'user'
+                formatted_contents.append(types.Content(**content_dict))
+            elif isinstance(item, str):
+                formatted_contents.append(types.Content(role="user", parts=[types.Part(text=item)]))
+            else:
+                # Try to use as is (e.g. specialized types)
+                formatted_contents.append(item)
+        return formatted_contents
+
     async def _run_gemini_async(self, contents: List[Any], config: Optional[types.GenerateContentConfig] = None):
         """Geminiの同期SDKを非同期で安全に呼び出すラッパー。"""
+        # コンテンツの正規化
+        sanitized_contents = self._convert_contents(contents)
+        
         def _run_generate():
             return self.client.models.generate_content(
                 model=self.model_name,
-                contents=contents,
+                contents=sanitized_contents,
                 config=config
             )
         try:
