@@ -32,7 +32,7 @@ class GeminiAdapter(ILanguageModel):
         self.client = genai.Client(api_key=api_key)
         self.system_instruction_template = system_instruction_template
         self.notion_database_mapping = notion_database_mapping
-        self.model_name = 'gemini-2.0-flash-lite-preview-02-05' # Latest model for best compatibility
+        self.model_name = 'gemini-2.0-flash-lite' # Stable version from available models list
 
     # ---------------------------------------------------------------------------
     # プロンプト構築メソッド群

@@ -47,7 +47,7 @@ class TestGeminiAdapter:
     def test_init_with_api_key(self, gemini_adapter, mock_genai):
         """APIキーが設定されている場合に正常初期化される"""
         mock_genai.Client.assert_called_once_with(api_key="test_api_key")
-        assert gemini_adapter.model_name == 'gemini-2.0-flash-lite-preview-02-05'
+        assert gemini_adapter.model_name == 'gemini-2.0-flash-lite'
 
     def test_init_without_api_key(self, mocker):
         """APIキーがない場合にValueErrorが発生する"""

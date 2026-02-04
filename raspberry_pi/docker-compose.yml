@@ -8,15 +8,15 @@ services:
       - .:/app
     devices:
       - "/dev/snd:/dev/snd" # Access to microphone and speakers
+    restart: always # Auto-start on boot
     depends_on:
       - voicevox_core
 
   voicevox_core:
-    # Note: voicevox_core image might need specific configuration or a different image depending on the exact version/setup intended (e.g., cpu vs gpu).
-    # The requirement mentioned "VOICEVOX (Core/Docker)". Assuming a standard compatible image.
-    # Actually, official voicevox/voicevox_engine might be what's usually used for HTTP API.
-    # But let's stick to "voicevox_core" name as requested, but maybe use the engine image for API.
-    # Changing image to voicevox/voicevox_engine for API compatibility as my client uses HTTP.
+    # Note: For Raspberry Pi (ARM64), ensure you are using an ARM-compatible image.
+    # The official image below is often x86-only.
+    # If this fails on Pi, consider building from source or finding a community ARM build.
     image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
+    restart: always # Auto-start on boot
     ports:
       - "50021:50021"
