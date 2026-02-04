@@ -43,6 +43,12 @@ class ProcessMessageUseCase:
                 self.session_repository.add_interaction(session_id, user_utterance, final_response)
                 return final_response
 
+            # --- ステップ1.5: 調査 (Research) ---
+            # Gemini 2.5の制限を回避するため、Notionツール生成の前にGoogle検索で情報を収集します。
+            research_results = await self.language_model.perform_research(
+                user_utterance, current_date, history
+            )
+
             # --- ステップ2: ツールコール生成 & 実行 ---
             all_tool_results = []
 
@@ -66,7 +72,8 @@ class ProcessMessageUseCase:
                     current_date,
                     list(available_tools.values()),
                     single_db_schema,
-                    history
+                    history,
+                    research_results=research_results
                 )
 
                 # 生成されたツールコールを非同期で実行

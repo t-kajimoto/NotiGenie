@@ -32,7 +32,7 @@ class GeminiAdapter(ILanguageModel):
         self.client = genai.Client(api_key=api_key)
         self.system_instruction_template = system_instruction_template
         self.notion_database_mapping = notion_database_mapping
-        self.model_name = 'gemini-2.0-flash-lite' # Stable version from available models list
+        self.model_name = 'gemini-2.5-flash-lite' # Testing 2.5-flash-lite with function-only tools
 
     # ---------------------------------------------------------------------------
     # プロンプト構築メソッド群
@@ -51,7 +51,7 @@ class GeminiAdapter(ILanguageModel):
 ユーザーの意図に最も関連性の高いデータベース名を `select_databases` ツールを使って返してください。関連するDBがない場合は空リストを返してください。"""
         return prompt
 
-    def _build_tool_generation_instruction(self, current_date: str, single_db_schema: Dict[str, Any]) -> str:
+    def _build_tool_generation_instruction(self, current_date: str, single_db_schema: Dict[str, Any], research_results: str = "") -> str:
         """【ステップ2: ツールコール生成】用のシステムプロンプトを構築します。"""
         db_name = single_db_schema.get('id')
         title = single_db_schema.get('title', db_name)
@@ -69,12 +69,16 @@ class GeminiAdapter(ILanguageModel):
         instruction = self.system_instruction_template.replace("{database_descriptions}", database_descriptions)
         instruction = instruction.replace("{current_date}", current_date)
         
+        # 調査結果がある場合はプロンプトに追加
+        if research_results:
+            instruction += f"\n### Research Results (Google Search results):\n{research_results}\n"
+
         # Groundingと新カラム対応の指示を追加
         instruction += """
 Note for ToDo List:
 1. "Deadline" (Date): Set a concrete date for sorting (e.g., "2月中" -> 2026-02-28).
 2. "DisplayDate" (Text): Keep the user's original vague expression (e.g., "2月中", "来週").
-3. "Memo" (RichText): If the task needs research (e.g., "date ideas", "restaurant"), use the 'google_search' tool to find info and summarize it here.
+3. "Memo" (RichText): If the task needs research (e.g., "date ideas", "restaurant"), use the information from 'Research Results' above to fill this field.
 4. "DoneDate" (Date): Only set this when marking a task as Done (check "完了ボタン"). Use today's date.
 """
         return instruction
@@ -166,13 +170,11 @@ Note for ToDo List:
             logger.error(f"Gemini API error: {e}")
             raise
 
-    # ---------------------------------------------------------------------------
-    # ILanguageModel インターフェース実装
-    # ---------------------------------------------------------------------------
     async def select_databases(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> List[str]:
+        """【ステップ1: DB選択】ユーザーの質問に関連するNotionデータベースを選択します。"""
         system_instruction = self._build_db_selection_instruction(current_date)
         
-        # ツール定義 (FunctionDeclarations は google.genai.types.Tool でラップする)
+        # ツール定義
         select_databases_tool = types.Tool(
             function_declarations=[
                 types.FunctionDeclaration(
@@ -198,44 +200,138 @@ Note for ToDo List:
             tools=[select_databases_tool]
         )
 
-        # 履歴と現在の発言を組み合わせる (History handling needs simplified)
-        # 簡易的に、履歴の最後の数件 + 現在の発言のみを使用するか、あるいは履歴全体を渡す
-        # ここではシンプルにユーザー発言のみで判定させる（ステップ1なので文脈依存が少ないと仮定、あるいは履歴が必要なら追加）
-        # NOTE: historyの形式変換が必要かもしれないが、一旦 user_utterance のみで実装
-        contents = [user_utterance]
+        contents = []
+        if history:
+            contents.extend(history)
+        contents.append({"role": "user", "parts": [{"text": user_utterance}]})
 
         logger.info("Step 1: Selecting databases...")
         response = await self._run_gemini_async(contents, config)
 
         selected_dbs = []
-        # レスポンス解析
         if response.candidates and response.candidates[0].content.parts:
             for part in response.candidates[0].content.parts:
                 if part.function_call and part.function_call.name == "select_databases":
                     args = part.function_call.args
-                    # argsはdict形式でアクセス可能
                     selected_dbs.extend(args.get("db_names", []))
 
         logger.info(f"Selected databases: {selected_dbs}")
         return selected_dbs
 
+    async def perform_research(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> str:
+        """【ステップ1.5: 調査】Google検索ツールを使用して外部情報を調査します。"""
+        system_instruction = f"""ユーザーの質問に答えるため、またはNotionに登録する情報を補完するために必要な情報をGoogle検索で調査してください。
+本日付: {current_date}
+調査が必要な例: レストランの場所や営業時間、イベントの開催日、特定のトピックに関するアイデアなど。
+調査結果を日本語で分かりやすく要約して回答してください。調査が不要な場合は「調査不要」と回答してください。"""
+        
+        # Google Search Tool (Grounding)
+        grounding_tool = types.Tool(google_search=types.GoogleSearch())
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            tools=[grounding_tool]
+        )
+
+        contents = []
+        if history:
+            contents.extend(history)
+        contents.append({"role": "user", "parts": [{"text": user_utterance}]})
+
+        logger.info("Step 1.5: Performing research via Google Search...")
+        response = await self._run_gemini_async(contents, config)
+
+        research_summary = ""
+        if response.text:
+            research_summary = response.text.strip()
+        
+        if research_summary == "調査不要" or not research_summary:
+            logger.info("Research either not required or empty.")
+            return ""
+
+        logger.info(f"Research summary obtained: {research_summary[:100]}...")
+        return research_summary
+
     async def generate_tool_calls(
         self, user_utterance: str, current_date: str, tools: List[Callable],
-        single_db_schema: Dict[str, Any], history: List[Dict[str, Any]] = None
+        single_db_schema: Dict[str, Any], history: List[Dict[str, Any]] = None,
+        research_results: str = ""
     ) -> List[Dict[str, Any]]:
-        system_instruction = self._build_tool_generation_instruction(current_date, single_db_schema)
+        system_instruction = self._build_tool_generation_instruction(current_date, single_db_schema, research_results)
         
-        # ユーザー定義ツールをSDKの形式に変換 (Client.models.generate_content は callable を直接受け取れる)
-        wrapped_tools = [self._wrap_tool(t) for t in tools]
+        # ツール定義を自動生成ではなく手動定義に変更 (Nullableエラー回避のため)
+        # google-genai SDK v0.2 は Python の Optional型 を JSON Schema の "type": ["string", "null"] に変換するが
+        # Gemini API はこれをサポートしていないため、明示的にスキーマを定義する。
         
-        # google_search ツールを追加
-        # google-genai SDK では types.Tool(google_search=types.GoogleSearch()) で定義
-        grounding_tool = types.Tool(google_search=types.GoogleSearch())
+        tool_declarations = []
         
-        # ユーザー定義ツールは function_declarations ではなく、直接 callable として渡すことも可能だが、
-        # ここでは統一的に tools リストを作成する
-        # NOTE: google-genai SDK allows passing python functions directly in `tools` list
-        all_tools = wrapped_tools + [grounding_tool]
+        # 1. search_database
+        tool_declarations.append(types.FunctionDeclaration(
+            name="search_database",
+            description="Notionデータベースからページを検索する。タイトル検索、またはプロパティによるフィルタリングが可能。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "タイトル検索キーワード"},
+                    "database_name": {"type": "string", "description": "検索対象のデータベース名"},
+                    "filter_conditions": {"type": "string", "description": "JSON形式の絞り込み条件 (例: '{\"Status\": \"Done\"}')"}
+                },
+                "required": [] # 全てOptionalだが、Nullableにはしない
+            }
+        ))
+        
+        # 2. create_page
+        tool_declarations.append(types.FunctionDeclaration(
+            name="create_page",
+            description="データベースに新しいページを作成する。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "database_name": {"type": "string", "description": "作成先のデータベース名"},
+                    "title": {"type": "string", "description": "ページのタイトル"},
+                    "properties": {"type": "object", "description": "その他のプロパティ設定値 (辞書)"}
+                },
+                "required": ["database_name", "title"]
+            }
+        ))
+        
+        # 3. update_page
+        tool_declarations.append(types.FunctionDeclaration(
+            name="update_page",
+            description="既存のページを更新する (ステータス変更など)。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "page_id": {"type": "string", "description": "更新対象のページID"},
+                    "properties": {"type": "object", "description": "更新するプロパティ値 (辞書)"}
+                },
+                "required": ["page_id", "properties"]
+            }
+        ))
+        
+        # 4. append_block
+        tool_declarations.append(types.FunctionDeclaration(
+            name="append_block",
+            description="ページの末尾にブロックを追加する。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "block_id": {"type": "string", "description": "親ブロックまたはページのID"},
+                    "children": {
+                        "type": "array", 
+                        "items": {"type": "object"},
+                        "description": "追加するブロックのリスト (Notion API Block object)"
+                    }
+                },
+                "required": ["block_id", "children"]
+            }
+        ))
+
+        notion_tools = types.Tool(function_declarations=tool_declarations)
+        
+        # NOTE: Gemini 2.5シリーズでは Function Calling と Google Search Grounding の同時利用に制限があるため
+        # Notion操作ツールのみを定義し、調査結果はプロンプト（テキスト）経由で渡します。
+        all_tools = [notion_tools]
 
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,

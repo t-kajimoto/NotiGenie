@@ -4,14 +4,38 @@
 
 ## 前提条件
 
-- Raspberry Pi 3 (Raspberry Pi OS 64-bit 推奨)
+- **Raspberry Pi 3 以上**
+- **OS**: **Raspberry Pi OS (64-bit)**
+  - **重要**: 32-bit版では今回のDocker構成が動作しません。必ず64-bit版をインストールしてください。
+  - Raspberry Pi Imager で `Raspberry Pi OS (other)` -> `Raspberry Pi OS (64-bit)` を選択。
 - インターネット接続
 - SSH接続が可能であること
 
-## 1. Dockerのインストール
+## 1. SSH設定と接続
 
-Raspberry Pi上でアプリを安定して動作させるため、Dockerを使用します。
+### 初回セットアップ (Raspberry Pi Imager設定)
+
+OSインストール時の設定画面（歯車アイコン）で以下を行うと便利です。
+
+- **ホスト名**: `raspberrypi.local` (デフォルト) または任意の名前
+- **SSHを有効にする**: 「公開鍵認証のみを許可する」がセキュリティ上推奨ですが、手軽さを優先するなら「パスワード認証」でも構いません。
+  - **パスワード認証**: 手軽ですが、毎回入力が必要です。
+  - **公開鍵認証**: 安全で、後の自動化も楽です。PCに公開鍵 (`id_rsa.pub`等) があればその中身を貼り付けます。
+
+### 便利な接続スクリプト
+
+PCから簡単に接続するためのスクリプトを用意しました。
+
+```powershell
+./scripts/connect_pi.ps1
+```
+
+初回実行時にSSHキーが無い場合は自動生成し、Raspberry Piへの転送コマンドを表示します（パスワード認証の場合）。
+
+## 2. Dockerのインストール
+
 SSHでRaspberry Piに接続し、以下のコマンドを実行してDockerをインストールしてください。
+(64-bit OSであれば公式スクリプトが問題なく動作します)
 
 ```bash
 # Dockerのインストールスクリプトをダウンロードして実行

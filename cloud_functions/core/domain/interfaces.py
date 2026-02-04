@@ -8,17 +8,22 @@ class ILanguageModel(ABC):
     """
 
     @abstractmethod
-    async def select_databases(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> List[str]:
+    async def perform_research(
+        self,
+        user_utterance: str,
+        current_date: str,
+        history: List[Dict[str, Any]] = None
+    ) -> str:
         """
-        ユーザーの発言とDBの要約から、使用すべきNotionデータベースを選択します。
-
+        ユーザーの発言に基づいて、Google検索などの外部情報を調査します。
+        
         Args:
             user_utterance (str): ユーザーの発言
-            current_date (str): 現在の日付（システムプロンプト等で使用）
-            history (List[Dict[str, Any]]): 過去の会話履歴。
-
+            current_date (str): 現在の日付
+            history (List[Dict[str, Any]]): 過去の会話履歴
+            
         Returns:
-            List[str]: 使用すべきデータベース名のリスト
+            str: 調査結果の要約テキスト。調査が不要な場合は空文字列を返します。
         """
         pass
 
@@ -29,7 +34,8 @@ class ILanguageModel(ABC):
         current_date: str,
         tools: List[Callable],
         single_db_schema: Dict[str, Any],
-        history: List[Dict[str, Any]] = None
+        history: List[Dict[str, Any]] = None,
+        research_results: str = ""
     ) -> List[Dict[str, Any]]:
         """
         単一のDBスキーマをコンテキストとして、実行すべきツールコール（関数と引数）を生成します。
@@ -40,6 +46,7 @@ class ILanguageModel(ABC):
             tools (List[Callable]): 使用可能なツールのリスト
             single_db_schema (Dict[str, Any]): 対象となる単一DBのスキーマ情報
             history (List[Dict[str, Any]]): 過去の会話履歴
+            research_results (str): 事前に調査した外部情報の要約
 
         Returns:
             List[Dict[str, Any]]: ツールコールのリスト。例: [{'name': 'search_database', 'args': {'query': '...'} }]
