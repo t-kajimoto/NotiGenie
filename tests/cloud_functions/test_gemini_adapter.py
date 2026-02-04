@@ -145,3 +145,53 @@ class TestGeminiAdapter:
 
         assert isinstance(result, list)
         assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_generate_response_without_tools(self, gemini_adapter, mock_genai):
+        """ツール結果がない場合、ユーザー発言がそのままプロンプトになる"""
+        mock_model = MagicMock()
+        mock_genai.GenerativeModel.return_value = mock_model
+        mock_chat = MagicMock()
+        mock_model.start_chat.return_value = mock_chat
+        mock_response = MagicMock()
+        mock_response.text = "こんにちは！"
+        mock_chat.send_message.return_value = mock_response
+
+        # tool_results=[] (空リスト)
+        response = await gemini_adapter.generate_response("hello", [], [{"role": "user", "parts": ["hi"]}])
+
+        assert response == "こんにちは！"
+        # start_chatには元の履歴だけが渡されるべき (ユーザー発言は追加されない)
+        mock_model.start_chat.assert_called_once()
+        call_kwargs = mock_model.start_chat.call_args[1]
+        assert call_kwargs["history"] == [{"role": "user", "parts": ["hi"]}]
+        
+        # send_messageにはユーザー発言がそのまま渡されるべき
+        mock_chat.send_message.assert_called_once_with("hello")
+
+    @pytest.mark.asyncio
+    async def test_generate_response_with_tools(self, gemini_adapter, mock_genai):
+        """ツール結果がある場合、ツール結果がプロンプトになる"""
+        mock_model = MagicMock()
+        mock_genai.GenerativeModel.return_value = mock_model
+        mock_chat = MagicMock()
+        mock_model.start_chat.return_value = mock_chat
+        mock_response = MagicMock()
+        mock_response.text = "検索結果です"
+        mock_chat.send_message.return_value = mock_response
+
+        tool_results = [{"name": "search", "result": "found"}]
+        await gemini_adapter.generate_response("search something", tool_results, [])
+
+        # start_chatの履歴にはユーザー発言が含まれているべき
+        mock_model.start_chat.assert_called_once()
+        history_arg = mock_model.start_chat.call_args[1]["history"]
+        assert len(history_arg) == 1
+        assert history_arg[0]["role"] == "user"
+        assert history_arg[0]["parts"][0] == "search something"
+
+        # send_messageにはツール結果(FunctionResponse)が渡されるべき
+        mock_chat.send_message.assert_called_once()
+        args = mock_chat.send_message.call_args[0]
+        # args[0] はリスト(tool_feedback)になっているはず
+        assert isinstance(args[0], list)

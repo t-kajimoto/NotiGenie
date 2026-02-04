@@ -199,25 +199,33 @@ Note for ToDo List:
         system_instruction = self._build_response_generation_instruction()
         model = genai.GenerativeModel(model_name=self.model_name, system_instruction=system_instruction)
 
-        # ツール実行結果を会話履歴形式に変換してプロンプトに含める
+        # ツール実行結果がある場合は、会話履歴にユーザー発言を追加し、ツール結果を送信する
+        # ない場合（雑談など）は、ユーザー発言そのものを送信する
         prompt_history = history or []
-        prompt_history.append({"role": "user", "parts": [user_utterance]})
+        
+        if not tool_results:
+            # ツール実行なし：ユーザー発言をそのままプロンプトとして送信
+            prompt = user_utterance
+        else:
+            # ツール実行あり：ユーザー発言を履歴に追加し、ツール結果をプロンプトとして送信
+            prompt_history.append({"role": "user", "parts": [user_utterance]})
 
-        # tool_resultsをモデルに理解できる形式に変換
-        tool_feedback = []
-        for result in tool_results:
-            tool_feedback.append(
-                genai.protos.Part(
-                    function_response=genai.protos.FunctionResponse(
-                        name=result["name"],
-                        response={"content": json.dumps(result["result"], ensure_ascii=False)}
+            # tool_resultsをモデルに理解できる形式に変換
+            tool_feedback = []
+            for result in tool_results:
+                tool_feedback.append(
+                    genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(
+                            name=result["name"],
+                            response={"content": json.dumps(result["result"], ensure_ascii=False)}
+                        )
                     )
                 )
-            )
+            prompt = tool_feedback
 
         logger.info("Step 3: Generating final response...")
         # ユーザー発言、ツールコール（履歴内）、ツール結果をすべて渡す
-        response = await self._run_gemini_async(model, tool_feedback, prompt_history)
+        response = await self._run_gemini_async(model, prompt, prompt_history)
 
         logger.info(f"Final response text: {response.text}")
         return response.text
