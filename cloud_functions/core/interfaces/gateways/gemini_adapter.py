@@ -73,7 +73,7 @@ class GeminiAdapter(ILanguageModel):
 Note for ToDo List:
 1. "Deadline" (Date): Set a concrete date for sorting (e.g., "2月中" -> 2026-02-28).
 2. "DisplayDate" (Text): Keep the user's original vague expression (e.g., "2月中", "来週").
-3. "Memo" (RichText): If the task needs research (e.g., "date ideas", "restaurant"), use the 'google_search_retrieval' tool to find info and summarize it here.
+3. "Memo" (RichText): If the task needs research (e.g., "date ideas", "restaurant"), use the 'google_search' tool to find info and summarize it here.
 4. "DoneDate" (Date): Only set this when marking a task as Done (check "完了ボタン"). Use today's date.
 """
         return instruction
@@ -169,7 +169,8 @@ Note for ToDo List:
 
         # Google Search Groundingを有効化
         # Function Callingと併用するためにリストに追加
-        all_tools = wrapped_tools + [{'google_search_retrieval': {}}]
+        # NOTE: 2026-02-04 google_search_retrieval は廃止されたため google_search を使用
+        all_tools = wrapped_tools + [{'google_search': {}}]
 
         model = genai.GenerativeModel(
             model_name=self.model_name,

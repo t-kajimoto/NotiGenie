@@ -195,3 +195,30 @@ class TestGeminiAdapter:
         args = mock_chat.send_message.call_args[0]
         # args[0] はリスト(tool_feedback)になっているはず
         assert isinstance(args[0], list)
+
+    @pytest.mark.asyncio
+    async def test_generate_tool_calls_includes_google_search(self, gemini_adapter, mock_genai):
+        """generate_tool_callsでgoogle_searchツールが含まれていることを確認"""
+        mock_model = MagicMock()
+        mock_genai.GenerativeModel.return_value = mock_model
+        
+        # モックレスポンス (空のツールコール)
+        mock_chat = MagicMock()
+        mock_model.start_chat.return_value = mock_chat
+        mock_response = MagicMock()
+        mock_response.parts = []
+        mock_chat.send_message.return_value = mock_response
+
+        tools = [MagicMock()] 
+        schema = {"id": "db", "title": "DB", "description": "test db", "properties": {}}
+        
+        await gemini_adapter.generate_tool_calls("query", "2024-01-01", tools, schema, [])
+
+        # GenerativeModelの初期化引数 tools を確認
+        args, kwargs = mock_genai.GenerativeModel.call_args
+        passed_tools = kwargs.get('tools')
+        
+        # passed_toolsはリスト。ユーザー提供ツール + google_search があるはず
+        assert any('google_search' in t for t in passed_tools if isinstance(t, dict))
+        # 古いツールが含まれていないことも確認
+        assert not any('google_search_retrieval' in t for t in passed_tools if isinstance(t, dict))
