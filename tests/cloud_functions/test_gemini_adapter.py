@@ -218,7 +218,19 @@ class TestGeminiAdapter:
         args, kwargs = mock_genai.GenerativeModel.call_args
         passed_tools = kwargs.get('tools')
         
-        # passed_toolsはリスト。ユーザー提供ツール + google_search があるはず
-        assert any('google_search' in t for t in passed_tools if isinstance(t, dict))
+        # passed_toolsはリスト。ユーザー提供ツール + genai.protos.Tool(google_search=...) があるはず
+        # genai.protos.GoogleSearchが存在するかを確認
+        # Mock化されているため、完全な型チェックは難しいが、構造をチェック
+        
+        has_google_search = False
+        for t in passed_tools:
+            # genai.protos.Toolのインスタンスであることを期待
+            # Mockオブジェクトの場合は属性アクセスで確認
+            if hasattr(t, 'google_search') and t.google_search is not None:
+                has_google_search = True
+                break
+        
+        assert has_google_search
+        
         # 古いツールが含まれていないことも確認
         assert not any('google_search_retrieval' in t for t in passed_tools if isinstance(t, dict))

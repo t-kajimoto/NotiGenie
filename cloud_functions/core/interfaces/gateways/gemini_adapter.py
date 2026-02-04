@@ -170,7 +170,12 @@ Note for ToDo List:
         # Google Search Groundingを有効化
         # Function Callingと併用するためにリストに追加
         # NOTE: 2026-02-04 google_search_retrieval は廃止されたため google_search を使用
-        all_tools = wrapped_tools + [{'google_search': {}}]
+        # NOTE: dict形式({'google_search': {}})で渡すとFunctionDeclarationとして解釈されエラーになるため、Toolオブジェクトとして渡す
+        all_tools = wrapped_tools + [
+            genai.protos.Tool(
+                google_search=genai.protos.GoogleSearch()
+            )
+        ]
 
         model = genai.GenerativeModel(
             model_name=self.model_name,
