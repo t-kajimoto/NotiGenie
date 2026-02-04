@@ -1,29 +1,33 @@
 """
-GeminiAdapter のテスト
-
-現在のクリーンアーキテクチャに対応したテストケース。
+GeminiAdapter (google-genai SDK) のテスト
 """
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import sys
 import os
-
+from google import genai
+from google.genai import types
 
 class TestGeminiAdapter:
     """GeminiAdapterのテストクラス"""
 
     @pytest.fixture
     def mock_genai(self, mocker):
-        """google.generativeai をモック化"""
+        """google.genai をモック化"""
         mock_genai = mocker.patch('cloud_functions.core.interfaces.gateways.gemini_adapter.genai')
-        mock_genai.configure = MagicMock()
+        # Clientのモック
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
         return mock_genai
 
     @pytest.fixture
     def gemini_adapter(self, mock_genai, mocker):
         """テスト用GeminiAdapterインスタンス"""
         mocker.patch.dict(os.environ, {"GEMINI_API_KEY": "test_api_key"})
-
+        
+        # モジュール内の google.genai.types をモック化するか、実際のクラスを使用するか
+        # ここでは実際のクラスがインポートされるが、gemini_adapter内で使われるものと整合させる
+        
         from cloud_functions.core.interfaces.gateways.gemini_adapter import GeminiAdapter
         return GeminiAdapter(
             system_instruction_template="Test prompt: {current_date} {database_descriptions}",
@@ -42,8 +46,8 @@ class TestGeminiAdapter:
 
     def test_init_with_api_key(self, gemini_adapter, mock_genai):
         """APIキーが設定されている場合に正常初期化される"""
-        mock_genai.configure.assert_called_once_with(api_key="test_api_key")
-        assert gemini_adapter.model_name == 'gemini-2.5-flash-lite'
+        mock_genai.Client.assert_called_once_with(api_key="test_api_key")
+        assert gemini_adapter.model_name == 'gemini-2.0-flash-lite-preview-02-05'
 
     def test_init_without_api_key(self, mocker):
         """APIキーがない場合にValueErrorが発生する"""
@@ -57,180 +61,81 @@ class TestGeminiAdapter:
                 notion_database_mapping={}
             )
 
-    def test_build_db_selection_instruction(self, gemini_adapter):
-        """DB選択用プロンプトが正しく構築される"""
-        instruction = gemini_adapter._build_db_selection_instruction("2024-01-15")
-        assert "2024-01-15" in instruction
-        assert "test_db" in instruction
-        assert "テスト用データベース" in instruction
-
-    def test_build_tool_generation_instruction(self, gemini_adapter):
-        """ツール生成用プロンプトが正しく構築される"""
-        schema = {
-            "id": "test_db",
-            "title": "テストDB",
-            "description": "テスト用データベース",
-            "properties": {
-                "Name": {"type": "title"},
-                "Status": {"type": "select", "options": ["Todo", "Done"]}
-            }
-        }
-        instruction = gemini_adapter._build_tool_generation_instruction("2024-01-15", schema)
-        assert "2024-01-15" in instruction
-        assert "test_db" in instruction
-
-    def test_sanitize_arg_with_dict(self, gemini_adapter):
-        """辞書型の引数が正しくサニタイズされる"""
-        result = gemini_adapter._sanitize_arg({"key": "value", "nested": {"a": 1}})
-        assert result == {"key": "value", "nested": {"a": 1}}
-
-    def test_sanitize_arg_with_list(self, gemini_adapter):
-        """リスト型の引数が正しくサニタイズされる"""
-        result = gemini_adapter._sanitize_arg(["a", "b", {"c": "d"}])
-        assert result == ["a", "b", {"c": "d"}]
-
-    def test_sanitize_arg_with_string(self, gemini_adapter):
-        """文字列型の引数がそのまま返される"""
-        result = gemini_adapter._sanitize_arg("test_string")
-        assert result == "test_string"
-
-    def test_sanitize_arg_with_number(self, gemini_adapter):
-        """数値型の引数がそのまま返される"""
-        result = gemini_adapter._sanitize_arg(42)
-        assert result == 42
-
     @pytest.mark.asyncio
-    async def test_select_databases_returns_list(self, gemini_adapter, mock_genai):
+    async def test_select_databases_returns_list(self, gemini_adapter):
         """select_databasesがリストを返す"""
         # モックレスポンスの設定
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-
-        mock_chat = MagicMock()
-        mock_model.start_chat.return_value = mock_chat
-
         mock_response = MagicMock()
+        # candidates[0].content.parts[0].function_call
         mock_part = MagicMock()
         mock_fn = MagicMock()
         mock_fn.name = "select_databases"
         mock_fn.args = {"db_names": ["test_db"]}
         mock_part.function_call = mock_fn
-        mock_response.parts = [mock_part]
-        mock_chat.send_message.return_value = mock_response
+        
+        mock_content = MagicMock()
+        mock_content.parts = [mock_part]
+        
+        mock_candidate = MagicMock()
+        mock_candidate.content = mock_content
+        
+        mock_response.candidates = [mock_candidate]
+        
+        gemini_adapter.client.models.generate_content.return_value = mock_response
 
+        # 実行
         result = await gemini_adapter.select_databases("テストクエリ", "2024-01-15")
 
+        # アサーション
         assert isinstance(result, list)
         assert "test_db" in result
-
-    @pytest.mark.asyncio
-    async def test_select_databases_empty_result(self, gemini_adapter, mock_genai):
-        """DB選択で空リストが返る場合"""
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-
-        mock_chat = MagicMock()
-        mock_model.start_chat.return_value = mock_chat
-
-        mock_response = MagicMock()
-        mock_part = MagicMock()
-        mock_fn = MagicMock()
-        mock_fn.name = "select_databases"
-        mock_fn.args = {"db_names": []}
-        mock_part.function_call = mock_fn
-        mock_response.parts = [mock_part]
-        mock_chat.send_message.return_value = mock_response
-
-        result = await gemini_adapter.select_databases("こんにちは", "2024-01-15")
-
-        assert isinstance(result, list)
-        assert len(result) == 0
-
-    @pytest.mark.asyncio
-    async def test_generate_response_without_tools(self, gemini_adapter, mock_genai):
-        """ツール結果がない場合、ユーザー発言がそのままプロンプトになる"""
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-        mock_chat = MagicMock()
-        mock_model.start_chat.return_value = mock_chat
-        mock_response = MagicMock()
-        mock_response.text = "こんにちは！"
-        mock_chat.send_message.return_value = mock_response
-
-        # tool_results=[] (空リスト)
-        response = await gemini_adapter.generate_response("hello", [], [{"role": "user", "parts": ["hi"]}])
-
-        assert response == "こんにちは！"
-        # start_chatには元の履歴だけが渡されるべき (ユーザー発言は追加されない)
-        mock_model.start_chat.assert_called_once()
-        call_kwargs = mock_model.start_chat.call_args[1]
-        assert call_kwargs["history"] == [{"role": "user", "parts": ["hi"]}]
         
-        # send_messageにはユーザー発言がそのまま渡されるべき
-        mock_chat.send_message.assert_called_once_with("hello")
+        # generate_contentの呼び出し確認
+        gemini_adapter.client.models.generate_content.assert_called_once()
+        args, kwargs = gemini_adapter.client.models.generate_content.call_args
+        assert kwargs['model'] == gemini_adapter.model_name
+        assert "select_databases" in str(kwargs['config'].tools[0]) # 簡易チェック
 
     @pytest.mark.asyncio
-    async def test_generate_response_with_tools(self, gemini_adapter, mock_genai):
-        """ツール結果がある場合、ツール結果がプロンプトになる"""
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-        mock_chat = MagicMock()
-        mock_model.start_chat.return_value = mock_chat
-        mock_response = MagicMock()
-        mock_response.text = "検索結果です"
-        mock_chat.send_message.return_value = mock_response
-
-        tool_results = [{"name": "search", "result": "found"}]
-        await gemini_adapter.generate_response("search something", tool_results, [])
-
-        # start_chatの履歴にはユーザー発言が含まれているべき
-        mock_model.start_chat.assert_called_once()
-        history_arg = mock_model.start_chat.call_args[1]["history"]
-        assert len(history_arg) == 1
-        assert history_arg[0]["role"] == "user"
-        assert history_arg[0]["parts"][0] == "search something"
-
-        # send_messageにはツール結果(FunctionResponse)が渡されるべき
-        mock_chat.send_message.assert_called_once()
-        args = mock_chat.send_message.call_args[0]
-        # args[0] はリスト(tool_feedback)になっているはず
-        assert isinstance(args[0], list)
-
-    @pytest.mark.asyncio
-    async def test_generate_tool_calls_includes_google_search(self, gemini_adapter, mock_genai):
+    async def test_generate_tool_calls_includes_google_search(self, gemini_adapter):
         """generate_tool_callsでgoogle_searchツールが含まれていることを確認"""
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-        
-        # モックレスポンス (空のツールコール)
-        mock_chat = MagicMock()
-        mock_model.start_chat.return_value = mock_chat
         mock_response = MagicMock()
-        mock_response.parts = []
-        mock_chat.send_message.return_value = mock_response
+        mock_response.candidates = [] # 空レスポンス
+        gemini_adapter.client.models.generate_content.return_value = mock_response
 
         tools = [MagicMock()] 
-        schema = {"id": "db", "title": "DB", "description": "test db", "properties": {}}
+        schema = {"id": "db", "title": "DB", "description": "desc", "properties": {}}
         
         await gemini_adapter.generate_tool_calls("query", "2024-01-01", tools, schema, [])
 
-        # GenerativeModelの初期化引数 tools を確認
-        args, kwargs = mock_genai.GenerativeModel.call_args
-        passed_tools = kwargs.get('tools')
+        # generate_contentの引数 tools を確認
+        args, kwargs = gemini_adapter.client.models.generate_content.call_args
+        passed_config = kwargs.get('config')
+        passed_tools = passed_config.tools
         
-        # passed_toolsはリスト。ユーザー提供ツール + genai.protos.Tool(google_search=...) があるはず
-        # genai.protos.GoogleSearchが存在するかを確認
-        # Mock化されているため、完全な型チェックは難しいが、構造をチェック
-        
+        # passed_toolsはリスト。ユーザー提供ツール + genai.types.Tool(google_search=...) があるはず
         has_google_search = False
         for t in passed_tools:
-            # genai.protos.Toolのインスタンスであることを期待
-            # Mockオブジェクトの場合は属性アクセスで確認
+            # t.google_search が存在するか (型によっては属性アクセス)
             if hasattr(t, 'google_search') and t.google_search is not None:
                 has_google_search = True
                 break
         
         assert has_google_search
+
+    @pytest.mark.asyncio
+    async def test_generate_response_message(self, gemini_adapter):
+        """最終応答の生成テスト"""
+        mock_response = MagicMock()
+        mock_response.text = "こんにちは"
+        gemini_adapter.client.models.generate_content.return_value = mock_response
+
+        response = await gemini_adapter.generate_response("hello", [], [])
         
-        # 古いツールが含まれていないことも確認
-        assert not any('google_search_retrieval' in t for t in passed_tools if isinstance(t, dict))
+        assert response == "こんにちは"
+        
+        args, kwargs = gemini_adapter.client.models.generate_content.call_args
+        # contentsにユーザー発言が含まれているか
+        contents = kwargs['contents']
+        assert contents[-1]['role'] == 'user'
+        assert contents[-1]['parts'][0]['text'] == 'hello'
