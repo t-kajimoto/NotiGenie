@@ -203,6 +203,7 @@ cython_debug/
 
 # Google Cloud credential file
 google-credential.json
+credentials.json
 
 # Audio files
 *.mp3

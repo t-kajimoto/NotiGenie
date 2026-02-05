@@ -6,21 +6,25 @@ services:
     privileged: true # Allow access to GPIO/SPI
     volumes:
       - .:/app
+      - ./aquestalk:/app/aquestalk # AquesTalk Pi binary (download manually)
     devices:
       - "/dev/snd:/dev/snd" # Access to microphone and speakers
     group_add:
       - audio
     environment:
       - PA_ALSA_PLUGHW=1 # Force PortAudio to use hardware device directly
+      - PYTHONUNBUFFERED=1 # Unbuffered output for debugging
+      - PV_DEVICE_INDEX=-1 # Default to auto-detect (logic in python)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
     restart: always # Auto-start on boot
-    depends_on:
-      - voicevox_core
+    # depends_on:
+    #   - voicevox_core
 
-  voicevox_core:
-    # Note: For Raspberry Pi (ARM64), ensure you are using an ARM-compatible image.
-    # The official image below is often x86-only.
-    # If this fails on Pi, consider building from source or finding a community ARM build.
-    image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
-    restart: always # Auto-start on boot
-    ports:
-      - "50021:50021"
+  # voicevox_core:
+  #   # Note: For Raspberry Pi (ARM64), ensure you are using an ARM-compatible image.
+  #   # The official image below is often x86-only.
+  #   # If this fails on Pi, consider building from source or finding a community ARM build.
+  #   image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
+  #   restart: always # Auto-start on boot
+  #   ports:
+  #     - "50021:50021"

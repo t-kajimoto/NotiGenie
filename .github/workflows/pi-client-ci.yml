@@ -1,0 +1,72 @@
+name: Raspberry Pi Client CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "raspberry_pi/**"
+      - ".github/workflows/pi-client-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "raspberry_pi/**"
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: raspberry_pi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: raspberry_pi/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-mock flake8
+
+      - name: Lint with flake8
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Treat all other issues as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --tb=short
+
+  # docker-build-arm:
+  #   runs-on: ubuntu-latest
+  #   needs: lint-and-test
+
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Set up QEMU
+  #       uses: docker/setup-qemu-action@v3
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+
+  #     - name: Build ARM64 Docker image
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: ./raspberry_pi
+  #         platforms: linux/arm64
+  #         push: false
+  #         tags: notigenie-client:test
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
+
+  # ARM64 テストはエミュレーションが遅いためビルド確認のみ
+  # 実際の動作テストは Raspberry Pi で行う

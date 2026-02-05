@@ -193,7 +193,11 @@ def main():
     else:
         try:
             logger.info("Initializing E-paper...")
-            from waveshare_epd import epd7in5_V2
+            try:
+                from waveshare_epaper import epd7in5_V2
+            except ImportError:
+                # Fallback for compatibility or if installed differently
+                from waveshare_epd import epd7in5_V2
             epd = epd7in5_V2.EPD()
             
             logger.info("Clear...")

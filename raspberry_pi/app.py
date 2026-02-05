@@ -5,7 +5,7 @@ import datetime
 import glob
 from wake_word_engine import WakeWordEngine
 from stt_client import STTClient, MicrophoneStream
-from voicevox_client import VoicevoxClient
+from tts_factory import create_tts_client
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -57,8 +57,8 @@ def main():
         print(f"Failed to initialize WakeWordEngine: {e}")
         return
 
-    stt_client = STTClient()
-    voicevox_client = VoicevoxClient() # Uses env var or defaults
+    stt_client = STTClient(rate=48000)
+    tts_client = create_tts_client()  # 環境変数 TTS_ENGINE で切り替え
 
     print("NotiGenie Client Started.")
 
@@ -66,6 +66,9 @@ def main():
         while True:
             # 1. Wait for Wake Word
             wake_word_engine.wait_for_wake_word()
+
+            # Release recorder to free ALSA device for PyAudio (STT)
+            wake_word_engine.release_recorder()
 
             # 2. Wake Word Detected - Play a sound (optional, skipping for simplicity) or just print
             print("Wake word detected! Listening for command...")
@@ -75,20 +78,27 @@ def main():
             try:
                 # We use a new MicrophoneStream context for each interaction to ensure clean audio capture
                 # and avoid conflicts with Porcupine which was just stopped.
-                with MicrophoneStream(rate=16000, chunk=1600) as stream:
+                # Device natively supports 48000Hz (AT-CSP1)
+                print("Starting STT (listening)...")
+                stt_t0 = time.perf_counter()
+                with MicrophoneStream(rate=48000, chunk=4800) as stream:
                     audio_generator = stream.generator()
                     # recognize_speech returns when it detects a final result or timeout (handled by STTClient logic usually)
                     # Note: STTClient.recognize_speech relies on Google Cloud stream which waits for silence.
                     text = stt_client.recognize_speech(audio_generator)
+                stt_duration = time.perf_counter() - stt_t0
+                print(f"STT complete. Duration: {stt_duration:.2f}s")
             except Exception as e:
                 print(f"STT Error: {e}")
-                voicevox_client.generate_and_play("聞き取れませんでした。")
+                tts_client.speak("聞き取れませんでした。")
                 continue
 
             if text:
                 print(f"Recognized: {text}")
 
                 # 4. Send to Cloud Functions
+                print("Sending to Backend (Cloud Functions)...")
+                backend_t0 = time.perf_counter()
                 payload = {
                     "text": text,
                     "date": datetime.datetime.now().strftime("%Y-%m-%d")
@@ -99,17 +109,19 @@ def main():
                 try:
                     response = requests.post(CLOUD_FUNCTIONS_URL, json=payload, headers=headers)
                     response.raise_for_status()
+                    backend_duration = time.perf_counter() - backend_t0
+                    print(f"Backend response received in {backend_duration:.2f}s")
+                    
                     response_data = response.json()
-
                     answer = response_data.get("response", "すみません、よくわかりませんでした。")
                     print(f"Response: {answer}")
 
                     # 5. TTS
-                    voicevox_client.generate_and_play(answer)
+                    tts_client.speak(answer)
 
                 except Exception as e:
                     print(f"Backend Error: {e}")
-                    voicevox_client.generate_and_play("すみません、エラーが発生しました。")
+                    tts_client.speak("すみません、エラーが発生しました。")
             else:
                 print("No speech detected.")
 

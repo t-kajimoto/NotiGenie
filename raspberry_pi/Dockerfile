@@ -1,28 +1,39 @@
-FROM python:3.9-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Install system dependencies
-# portaudio19-dev is required for PyAudio
-# libasound2-dev is required for sounddevice
-RUN apt-get update && apt-get install -y \
-    gcc \
+# 1. Install System Python and Libraries (pre-compiled)
+# Avoids compilation issues with PyAudio, Numpy, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-pyaudio \
+    python3-numpy \
+    python3-scipy \
+    python3-requests \
+    python3-dotenv \
+    libasound2 \
     portaudio19-dev \
-    libasound2-dev \
-    libopenjp2-7 \
-    fonts-noto-cjk \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+    alsa-utils \
+    usbutils \
+    gcc \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Waveshare e-Paper library
-RUN git clone https://github.com/waveshare/e-Paper.git /tmp/e-Paper \
-    && cd /tmp/e-Paper/RaspberryPi_JetsonNano/python/ \
-    && python setup.py install \
-    && rm -rf /tmp/e-Paper
+# 2. Install remaining Pip packages (Google Cloud, Porcupine)
+# Use --break-system-packages as we are in a container
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+# 3. Add armhf architecture and Install 32-bit runtime (for AquesTalk Pi)
+RUN dpkg --add-architecture armhf && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libc6:armhf \
+    libstdc++6:armhf \
+    libgcc-s1:armhf \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
-CMD ["python", "app.py"]
+CMD ["python3", "app.py"]

@@ -1,10 +1,24 @@
+# Audio
+sounddevice
+# numpy
+# scipy
+# pyaudio
 pvporcupine
 pvrecorder
+
+# VoiceVOX / Network
+# requests
+
+# Google Cloud Speech
 google-cloud-speech
-requests
-sounddevice
-numpy
+
+# Env
 python-dotenv
-pyaudio
-scipy
-Pillow
+
+# E-Paper
+# # Pillow
+# # waveshare-epaper
+
+# Testing (dev only - not installed in production Docker)
+# pytest
+# pytest-mock
