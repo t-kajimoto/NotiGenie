@@ -1,13 +1,24 @@
 ---
-description: Raspberry PiのCIエラー修正をコミットする
+description: 変更をコミットしてプッシュする
 ---
 
-1. コードと依存関係の修正をコミット
-   // turbo
-   git add raspberry_pi/requirements.txt raspberry_pi/tts_factory.py
-   git commit -m "fix(raspberry_pi): numpy依存の追加とTTSファクトリの修正"
+// turbo-all
 
-2. テストコードの修正をコミット
-   // turbo
-   git add raspberry_pi/tests/test_aquestalk_client.py raspberry_pi/tests/test_tts_factory.py
-   git commit -m "test(raspberry_pi): AquesTalkClientとTTSFactoryのテスト修正"
+1. 変更状況を確認する
+
+```
+git status --short
+```
+
+2. 変更内容を確認し、論理的な単位でステージングしてコミットする
+
+- 関連するファイルをまとめて `git add` する
+- conventional commits 形式でコミットメッセージを書く
+- 例: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`
+- スコープは任意: `feat(cloud_functions):`, `fix(raspberry_pi):`
+
+3. リモートにプッシュする
+
+```
+git push origin main
+```
