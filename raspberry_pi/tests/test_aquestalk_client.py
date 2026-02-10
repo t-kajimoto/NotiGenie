@@ -51,8 +51,10 @@ card 2: Device [USB Composite Device], device 0: USB Audio [USB Audio]
     def test_aquestalk_binary_path(self, client):
         """AquesTalkバイナリのパスが正しく設定される"""
         # Windows/Linux 両方で動作するようにパス区切りを考慮
-        assert "AquesTalkPi" in client.aquestalk_bin
-        assert "bin64" in client.aquestalk_bin
+        # CI check: verify logical path structure rather than strict 'bin64' existence
+        # Check if it ends with the expected binary name
+        assert client.aquestalk_bin.endswith("AquesTalkPi")
+        # Check if 'aquestalk' is part of the path (case-insensitive)
         assert "aquestalk" in client.aquestalk_bin.lower()
 
     def test_speak_command_construction(self, client):
@@ -84,15 +86,24 @@ card 2: Device [USB Composite Device], device 0: USB Audio [USB Audio]
             mock_proc = MagicMock()
             mock_proc.returncode = 0
             mock_proc.communicate.return_value = (b'RIFF' + b'\x00' * 100, b'')
+            
+            # Setup side_effect to return the mock process for both calls (aquestalk and aplay)
+            # or just return it as return_value if only one call matters for this test
+            # But speak() calls Popen twice.
             mock_popen.return_value = mock_proc
             
             client.speak("テスト")
             
-            # cwd が bin64 ディレクトリであることを確認 (Windows/Linux両対応)
+            # Popen is called twice: once for aquestalk, once for aplay
+            # We want to check the first call (aquestalk)
             aquestalk_call = mock_popen.call_args_list[0]
             cwd = aquestalk_call[1].get('cwd')
+            
             assert cwd is not None
-            assert "bin64" in cwd
+            # Do not strictly check for 'bin64' as installation path varies
+            # Instead, check if the cwd is the parent of the binary path
+            expected_cwd = os.path.dirname(client.aquestalk_bin)
+            assert cwd == expected_cwd
 
     def test_speak_text_encoding(self, client):
         """speak()がテキストをUTF-8でエンコードして送信する"""
@@ -110,10 +121,18 @@ card 2: Device [USB Composite Device], device 0: USB Audio [USB Audio]
             test_text = "日本語テスト"
             client.speak(test_text)
             
-            # communicate に正しくエンコードされたテキストが渡されたか確認
-            mock_aquestalk.communicate.assert_called_once()
-            input_data = mock_aquestalk.communicate.call_args[1]['input']
+            # communicate call verification
+            # The client uses stdin.write() and stdin.close() instead of communicate()
+            # because it streams output to aplay
+            mock_aquestalk.communicate.assert_not_called()
+            
+            # Verify write call
+            mock_aquestalk.stdin.write.assert_called_once()
+            input_data = mock_aquestalk.stdin.write.call_args[0][0]
             assert input_data == test_text.encode('utf-8')
+            
+            # Verify close call
+            mock_aquestalk.stdin.close.assert_called_once()
 
     def test_speak_handles_aquestalk_error(self, client, capsys):
         """AquesTalkがエラーを返した場合のハンドリング"""

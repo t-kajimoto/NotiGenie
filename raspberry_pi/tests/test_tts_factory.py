@@ -4,6 +4,7 @@ TTS Factory unit tests
 環境変数 TTS_ENGINE に基づいて正しいTTSクライアントが作成されることをテスト。
 """
 import os
+import sys
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -18,7 +19,8 @@ class TestTTSFactory:
 
     def test_create_voicevox_client(self, mock_aplay_output):
         """TTS_ENGINE=voicevox でVoicevoxClientが作成される"""
-        with patch.dict(os.environ, {"TTS_ENGINE": "voicevox"}):
+        with patch.dict(os.environ, {"TTS_ENGINE": "voicevox"}), \
+             patch.dict('sys.modules', {'sounddevice': MagicMock()}):
             with patch('subprocess.check_output', return_value=mock_aplay_output):
                 from tts_factory import create_tts_client
                 from voicevox_client import VoicevoxClient
@@ -42,7 +44,8 @@ class TestTTSFactory:
         env = os.environ.copy()
         env.pop("TTS_ENGINE", None)
         
-        with patch.dict(os.environ, env, clear=True):
+        with patch.dict(os.environ, env, clear=True), \
+             patch.dict('sys.modules', {'sounddevice': MagicMock()}):
             with patch('subprocess.check_output', return_value=mock_aplay_output):
                 from tts_factory import create_tts_client
                 from voicevox_client import VoicevoxClient
