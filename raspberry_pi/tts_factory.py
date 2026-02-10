@@ -24,7 +24,9 @@ def create_tts_client() -> TTSClient:
         from voicevox_client import VoicevoxClient
         print("TTS Engine: VoiceVOX")
         return VoicevoxClient()
-    else:
+    elif engine == "aquestalk":
         from aquestalk_client import AquesTalkClient
         print("TTS Engine: AquesTalk Pi")
         return AquesTalkClient()
+    else:
+        raise ValueError(f"Unsupported TTS Engine: {engine}")
