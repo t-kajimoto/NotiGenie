@@ -7,7 +7,7 @@ from cloud_functions.core.use_cases.process_message import ProcessMessageUseCase
 def mock_language_model():
     """GeminiAdapterのモックを返すFixture"""
     mock = MagicMock()
-    mock.select_databases = AsyncMock()
+    # select_databases は統合DB化に伴い廃止
     mock.generate_tool_calls = AsyncMock()
     mock.generate_response = AsyncMock()
     mock.perform_research = AsyncMock()
@@ -17,16 +17,21 @@ def mock_language_model():
 def mock_notion_repository():
     """NotionAdapterのモックを返すFixture"""
     mock = MagicMock()
-    # テスト用にダミーのスキーマ情報を持たせる
+    # 統合データベース (master_db) のスキーマ
     mock.notion_database_mapping = {
-        "todo_list": {"id": "todo_list", "description": "タスク管理DB", "properties": {}},
-        "diary": {"id": "diary", "description": "日記DB", "properties": {}},
-        "meal_diary": {"id": "meal_diary_db_id", "description": "食事記録DB", "properties": {
-            "食べたもの": {"type": "title"},
-            "日付": {"type": "date"},
-            "分類": {"type": "select"},
-            "場所": {"type": "rich_text"}
-        }}
+        "master_db": {
+            "id": "test_master_db_id",
+            "title": "タスク・買い物・献立管理",
+            "description": "統合データベース。買い物、ToDo、献立を一元管理します。",
+            "properties": {
+                "タイトル": {"type": "title", "description": "タスクやアイテムの名前"},
+                "カテゴリ": {"type": "select", "options": ["Shopping", "ToDo", "Menu", "Other"], "description": "データの種類"},
+                "メモ": {"type": "rich_text", "description": "詳細情報"},
+                "予定日": {"type": "date", "description": "明確な日付"},
+                "予定日表示": {"type": "rich_text", "description": "自然言語での時期"},
+                "完了日": {"type": "date", "description": "完了した日付"}
+            }
+        }
     }
     # 各ツールもモック化
     mock.search_database = MagicMock(return_value={"result": "searched"})
@@ -66,25 +71,24 @@ async def test_execute_help_keyword(use_case, mock_language_model):
         # --- Assert ---
         assert response == "ヘルプメッセージです"
         # 外部APIは呼ばれないこと
-        mock_language_model.select_databases.assert_not_called()
-        mock_language_model.select_databases.reset_mock()
+        mock_language_model.generate_tool_calls.assert_not_called()
+        mock_language_model.generate_tool_calls.reset_mock()
 
 @pytest.mark.asyncio
-async def test_execute_single_db_success_flow(
+async def test_execute_unified_db_success_flow(
     use_case, mock_language_model, mock_notion_repository, mock_session_repository
 ):
-    """正常系: 単一DB → ツールコール生成 → 実行 → 応答生成 の一連の流れをテスト"""
+    """正常系: 統合DB (master_db) → ツールコール生成 → 実行 → 応答生成"""
     # --- Arrange ---
     user_utterance = "今日のタスクを教えて"
     current_date = "2023-10-27"
     session_id = "test_session"
 
-    # Step 1: DB選択のモック
-    mock_language_model.select_databases.return_value = ["todo_list"]
+    # DB選択は廃止。常に master_db が使われる。
 
     # Step 2: ツールコール生成のモック
     mock_language_model.generate_tool_calls.return_value = [
-        {"name": "search_database", "args": {"query": "今日のタスク", "database_name": "todo_list"}}
+        {"name": "search_database", "args": {"query": "今日のタスク", "database_name": "master_db"}}
     ]
 
     # Step 3: 応答生成のモック
@@ -94,132 +98,143 @@ async def test_execute_single_db_success_flow(
     final_response = await use_case.execute(user_utterance, current_date, session_id)
 
     # --- Assert ---
-    # 1. DB選択が呼ばれたか
-    mock_language_model.select_databases.assert_awaited_once_with(
-        user_utterance, current_date, []
-    )
-    # 2. ツールコール生成が呼ばれたか
+    # 1. ツールコール生成が呼ばれたか (master_dbのスキーマが渡される)
     mock_language_model.generate_tool_calls.assert_awaited_once()
-    # 3. Notionツールが呼ばれたか
+    # 2. Notionツールが呼ばれたか
     mock_notion_repository.search_database.assert_called_once_with(
-        query="今日のタスク", database_name="todo_list"
+        query="今日のタスク", database_name="master_db"
     )
-    # 4. 応答生成が呼ばれたか
+    # 3. 応答生成が呼ばれたか
     mock_language_model.generate_response.assert_awaited_once()
-    # 5. 最終的な応答が正しいか
+    # 4. 最終的な応答が正しいか
     assert final_response == "本日のタスクはこちらです..."
-    # 6. セッションが保存されたか
+    # 5. セッションが保存されたか
     mock_session_repository.add_interaction.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_execute_no_db_selected(
-    use_case, mock_language_model, mock_notion_repository, mock_session_repository
-):
-    """DBが選択されなかった場合、雑談応答が返されることをテスト"""
-    # --- Arrange ---
-    user_utterance = "こんにちは"
-    current_date = "2023-10-27"
-    session_id = "test_session"
-
-    # Step 1: DB選択の結果が空
-    mock_language_model.select_databases.return_value = []
-    # 雑談応答のモック
-    mock_language_model.generate_response.return_value = "こんにちは！何かお手伝いできることはありますか？"
-
-    # --- Act ---
-    final_response = await use_case.execute(user_utterance, current_date, session_id)
-
-    # --- Assert ---
-    # ツールコール生成やNotionツールは呼ばれない
-    mock_language_model.generate_tool_calls.assert_not_called()
-    mock_notion_repository.search_database.assert_not_called()
-    # generate_responseは呼ばれる
-    mock_language_model.generate_response.assert_awaited_once_with(user_utterance, [], [])
-    # 応答が正しいか
-    assert final_response == "こんにちは！何かお手伝いできることはありますか？"
-    # セッションは保存される
-    mock_session_repository.add_interaction.assert_called_once()
-
-@pytest.mark.asyncio
-async def test_execute_multiple_dbs_selected(
+async def test_execute_shopping_creation(
     use_case, mock_language_model, mock_notion_repository
 ):
-    """複数DBが選択された場合のフローをテスト"""
+    """統合DB: 買い物アイテム作成のシナリオをテスト"""
     # --- Arrange ---
-    user_utterance = "今日のタスクと日記を検索して"
-
-    # DB選択で2つ返す
-    mock_language_model.select_databases.return_value = ["todo_list", "diary"]
-
-    # generate_tool_callsがDBごとに異なる結果を返すように設定
-    mock_language_model.generate_tool_calls.side_effect = [
-        [{"name": "search_database", "args": {"query": "今日のタスク", "database_name": "todo_list"}}],
-        [{"name": "search_database", "args": {"query": "今日の日記", "database_name": "diary"}}]
-    ]
-
-    mock_language_model.generate_response.return_value = "検索結果です。"
-
-    # --- Act ---
-    await use_case.execute(user_utterance, "2023-10-27", "test_session")
-
-    # --- Assert ---
-    # generate_tool_callsが2回呼ばれている
-    assert mock_language_model.generate_tool_calls.call_count == 2
-    # Notionのsearch_databaseが2回呼ばれている
-    assert mock_notion_repository.search_database.call_count == 2
-    # generate_responseに2つのツール実行結果が渡されている
-    mock_language_model.generate_response.assert_awaited_once()
-    # generate_responseに渡されたtool_results引数の長さを確認
-    args, _ = mock_language_model.generate_response.await_args
-    assert len(args[1]) == 2 # args[1] は tool_results
-
-@pytest.mark.asyncio
-async def test_execute_meal_diary_creation(
-    use_case, mock_language_model, mock_notion_repository
-):
-    """食事日記: 新規ページ作成のシナリオをテスト"""
-    # --- Arrange ---
-    user_utterance = "昨日の夜、家でカレーを食べた"
+    user_utterance = "牛乳を買いたい"
     current_date = "2024-01-01"
 
-    # Step 1: DB選択
-    mock_language_model.select_databases.return_value = ["meal_diary"]
-
-    # Step 2: ツールコール生成
+    # ツールコール生成
     expected_properties = {
-        "食べたもの": "カレー",
-        "日付": "2023-12-31", # "昨日"を解釈
-        "分類": "夜",
-        "場所": "家"
+        "カテゴリ": "Shopping",
+        "予定日": "2024-01-01",
+        "予定日表示": "今日"
     }
     mock_language_model.generate_tool_calls.return_value = [
         {
             "name": "create_page",
             "args": {
-                "database_name": "meal_diary",
+                "database_name": "master_db",
+                "title": "牛乳",
                 "properties": expected_properties
             }
         }
     ]
 
-    # Step 3: 応答生成
+    mock_language_model.generate_response.return_value = "牛乳を買い物リストに追加しました。"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    # ツールコール生成が呼ばれたか
+    mock_language_model.generate_tool_calls.assert_awaited_once()
+
+    # Notionのcreate_pageが期待通りの引数で呼ばれたか
+    mock_notion_repository.create_page.assert_called_once_with(
+        database_name="master_db",
+        title="牛乳",
+        properties=expected_properties
+    )
+
+    # 最終応答が正しいか
+    assert final_response == "牛乳を買い物リストに追加しました。"
+
+@pytest.mark.asyncio
+async def test_execute_meal_creation_with_category(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """統合DB: 食事記録作成 (カテゴリ=Menu) のシナリオをテスト"""
+    # --- Arrange ---
+    user_utterance = "昨日の夜、家でカレーを食べた"
+    current_date = "2024-01-01"
+
+    # ツールコール生成
+    expected_properties = {
+        "カテゴリ": "Menu",
+        "完了日": "2023-12-31",
+        "予定日": "2023-12-31",
+        "メモ": "夜ごはん、家で食べた"
+    }
+    mock_language_model.generate_tool_calls.return_value = [
+        {
+            "name": "create_page",
+            "args": {
+                "database_name": "master_db",
+                "title": "カレー",
+                "properties": expected_properties
+            }
+        }
+    ]
+
+    # 応答生成
     mock_language_model.generate_response.return_value = "食事内容を記録しました。"
 
     # --- Act ---
     final_response = await use_case.execute(user_utterance, current_date, "test_session")
 
     # --- Assert ---
-    # 1. DB選択が呼ばれたか
-    mock_language_model.select_databases.assert_awaited_once()
-
-    # 2. ツールコール生成が呼ばれたか
     mock_language_model.generate_tool_calls.assert_awaited_once()
 
-    # 3. Notionのcreate_pageが期待通りの引数で呼ばれたか
     mock_notion_repository.create_page.assert_called_once_with(
-        database_name="meal_diary",
+        database_name="master_db",
+        title="カレー",
         properties=expected_properties
     )
 
-    # 4. 最終応答が正しいか
     assert final_response == "食事内容を記録しました。"
+
+@pytest.mark.asyncio
+async def test_execute_with_research(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """リサーチ (Google検索) 結果がツールコール生成に渡されることをテスト"""
+    # --- Arrange ---
+    user_utterance = "渋谷の美味しいラーメン屋に行きたい"
+    current_date = "2024-01-01"
+
+    # リサーチ結果
+    mock_language_model.perform_research.return_value = "渋谷おすすめラーメン: 一蘭渋谷店 (住所: ...)"
+
+    # ツールコール生成
+    mock_language_model.generate_tool_calls.return_value = [
+        {
+            "name": "create_page",
+            "args": {
+                "database_name": "master_db",
+                "title": "渋谷のラーメン屋に行く",
+                "properties": {
+                    "カテゴリ": "ToDo",
+                    "メモ": "渋谷おすすめラーメン: 一蘭渋谷店 (住所: ...)"
+                }
+            }
+        }
+    ]
+
+    mock_language_model.generate_response.return_value = "ラーメン屋を登録しました。"
+
+    # --- Act ---
+    await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    # リサーチが呼ばれたか
+    mock_language_model.perform_research.assert_awaited_once()
+    # ツールコール生成にリサーチ結果が渡されたか
+    call_kwargs = mock_language_model.generate_tool_calls.call_args
+    assert "research_results" in call_kwargs.kwargs or len(call_kwargs.args) > 5
