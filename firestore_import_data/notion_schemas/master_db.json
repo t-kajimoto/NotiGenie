@@ -1,0 +1,32 @@
+{
+  "title": "タスク・買い物・献立管理",
+  "id": "3031ac9c-8c70-8039-b008-e328acc6772d",
+  "description": "統合データベース。買い物、ToDo、献立を一元管理します。'カテゴリ' プロパティで分類します。",
+  "properties": {
+    "タイトル": {
+      "type": "title",
+      "description": "タスクやアイテムの名前"
+    },
+    "カテゴリ": {
+      "type": "select",
+      "options": ["Shopping", "ToDo", "Menu", "Other"],
+      "description": "データの種類 (Shopping/ToDo/Menu/Other)"
+    },
+    "メモ": {
+      "type": "rich_text",
+      "description": "詳細情報、補足、URLなど"
+    },
+    "予定日": {
+      "type": "date",
+      "description": "明確な日付（ソート・カレンダー用）"
+    },
+    "予定日表示": {
+      "type": "rich_text",
+      "description": "自然言語での時期（例: '来週', 'なる早'）"
+    },
+    "完了日": {
+      "type": "date",
+      "description": "完了した日付。日付が入っていれば完了/購入済みとみなす。未入力は未完了。"
+    }
+  }
+}
