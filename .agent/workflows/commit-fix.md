@@ -11,7 +11,3 @@ description: Raspberry PiのCIエラー修正をコミットする
    // turbo
    git add raspberry_pi/tests/test_aquestalk_client.py raspberry_pi/tests/test_tts_factory.py
    git commit -m "test(raspberry_pi): AquesTalkClientとTTSFactoryのテスト修正"
-
-3. 変更をプッシュ
-   // turbo
-   git push origin main
