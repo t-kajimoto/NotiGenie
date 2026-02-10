@@ -63,11 +63,11 @@ jobs:
 
       - name: Build Docker image
         working-directory: ./raspberry_pi
-        run: docker-compose build
+        run: docker compose build
 
       - name: Run E-paper Mock Test in Docker
         working-directory: ./raspberry_pi
-        run: docker-compose run client python epaper_display.py --mock
+        run: docker compose run client python epaper_display.py --mock
 
   # ARM64 テストはエミュレーションが遅いためビルド確認のみ
   # 実際の動作テストは Raspberry Pi で行う
