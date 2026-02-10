@@ -47,7 +47,7 @@ class TestGeminiAdapter:
     def test_init_with_api_key(self, gemini_adapter, mock_genai):
         """APIキーが設定されている場合に正常初期化される"""
         mock_genai.Client.assert_called_once_with(api_key="test_api_key")
-        assert gemini_adapter.model_name == 'gemini-2.0-flash-lite'
+        assert gemini_adapter.model_name == 'gemini-2.5-flash-lite'
 
     def test_init_without_api_key(self, mocker):
         """APIキーがない場合にValueErrorが発生する"""
@@ -96,32 +96,7 @@ class TestGeminiAdapter:
         assert kwargs['model'] == gemini_adapter.model_name
         assert "select_databases" in str(kwargs['config'].tools[0]) # 簡易チェック
 
-    @pytest.mark.asyncio
-    async def test_generate_tool_calls_includes_google_search(self, gemini_adapter):
-        """generate_tool_callsでgoogle_searchツールが含まれていることを確認"""
-        mock_response = MagicMock()
-        mock_response.candidates = [] # 空レスポンス
-        gemini_adapter.client.models.generate_content.return_value = mock_response
 
-        tools = [MagicMock()] 
-        schema = {"id": "db", "title": "DB", "description": "desc", "properties": {}}
-        
-        await gemini_adapter.generate_tool_calls("query", "2024-01-01", tools, schema, [])
-
-        # generate_contentの引数 tools を確認
-        args, kwargs = gemini_adapter.client.models.generate_content.call_args
-        passed_config = kwargs.get('config')
-        passed_tools = passed_config.tools
-        
-        # passed_toolsはリスト。ユーザー提供ツール + genai.types.Tool(google_search=...) があるはず
-        has_google_search = False
-        for t in passed_tools:
-            # t.google_search が存在するか (型によっては属性アクセス)
-            if hasattr(t, 'google_search') and t.google_search is not None:
-                has_google_search = True
-                break
-        
-        assert has_google_search
 
     @pytest.mark.asyncio
     async def test_generate_response_message(self, gemini_adapter):

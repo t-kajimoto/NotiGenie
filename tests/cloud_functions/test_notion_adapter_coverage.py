@@ -65,8 +65,7 @@ class TestNotionAdapterCoverage:
         # APIResponseError
         mock_resp = MagicMock()
         mock_resp.status_code = 401
-        err = APIResponseError(message="Auth failed", response=mock_resp)
-        err.code = 401
+        err = APIResponseError(message="Auth failed", response=mock_resp, code=401)
         
         mock_client.users.me.side_effect = err
         assert adapter.validate_connection() is False
@@ -168,8 +167,7 @@ class TestNotionAdapterCoverage:
         # API Response Error
         mock_resp = MagicMock()
         mock_resp.status_code = 400
-        err = APIResponseError(message="Bad Req", response=mock_resp)
-        err.code = 400
+        err = APIResponseError(message="Bad Req", response=mock_resp, code=400)
 
         mock_client.pages.create.side_effect = err
         res = adapter.create_page("test_db", "Title")
@@ -218,8 +216,7 @@ class TestNotionAdapterCoverage:
         # API Error
         mock_resp = MagicMock()
         mock_resp.status_code = 500
-        err = APIResponseError(message="Err", response=mock_resp)
-        err.code = 500
+        err = APIResponseError(message="Err", response=mock_resp, code=500)
         
         mock_client.blocks.children.append.side_effect = err
         res = adapter.append_block("block-1", [])

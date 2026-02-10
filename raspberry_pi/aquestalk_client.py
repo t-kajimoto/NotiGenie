@@ -70,43 +70,51 @@ class AquesTalkClient(TTSClient):
 
             print(f"Speaking: {text[:30]}...")
             
-            # AquesTalk Pi を起動してテキストを送信し、WAV出力を取得
-            # cwd を aquestalk_dir (aq_dic がある場所) に設定する
-            # バイナリは bin64 にあるが、辞書はルートにあるため。
+            # AquesTalk Pi を起動 (stdin=PIPE, stdout=PIPE)
+            # cwd を aquestalk_dir に設定 (辞書ロードのため)
             aquestalk_proc = subprocess.Popen(
                 aquestalk_cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                cwd=self.aquestalk_dir  # aq_dic があるディレクトリ
+                cwd=self.aquestalk_dir
             )
-            # テキストをstdinに送信してWAVデータを取得
-            wav_data, stderr = aquestalk_proc.communicate(input=text.encode('utf-8'))
-            
-            if aquestalk_proc.returncode != 0:
-                stderr_text = stderr.decode('utf-8', errors='ignore')
-                print(f"AquesTalk failed with return code {aquestalk_proc.returncode}: {stderr_text}")
-                return
-            
-            if not wav_data or len(wav_data) < 44:  # WAVヘッダは44バイト
-                print(f"AquesTalk produced no or invalid output ({len(wav_data) if wav_data else 0} bytes)")
-                return
-            
-            # aplay でWAVデータを再生
+
+            # aplay を起動 (stdin=aquestalk_proc.stdout)
+            # これにより Python を介さずに直接カーネルバッファ経由でデータが流れる (ストリーム再生)
             aplay_proc = subprocess.Popen(
                 aplay_cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
+                stdin=aquestalk_proc.stdout,
+                stdout=subprocess.DEVNULL, # aplayの出力は捨てる
                 stderr=subprocess.PIPE
             )
-            _, aplay_stderr = aplay_proc.communicate(input=wav_data)
+
+            # テキストを送信
+            # communicate() は stdout を読み込んでしまうため、stdin.write() を使用
+            try:
+                aquestalk_proc.stdin.write(text.encode('utf-8'))
+                aquestalk_proc.stdin.close() # EOFを送る
+            except Exception as e:
+                print(f"Error writing to AquesTalk inputs: {e}")
+                aquestalk_proc.kill()
+                aplay_proc.kill()
+                return
+
+            # プロセスの終了を待機
+            # aplay が再生を終えるまで待つ
+            _, aplay_stderr = aplay_proc.communicate()
+            aquestalk_proc.wait()
 
             t1 = time.perf_counter()
 
-            if aplay_proc.returncode != 0:
-                print(f"aplay failed: {aplay_stderr.decode()}")
+            if aquestalk_proc.returncode != 0:
+                # エラーメッセージを取得 (stderr はまだ読めるはず)
+                err = aquestalk_proc.stderr.read().decode('utf-8', errors='ignore')
+                print(f"AquesTalk failed with return code {aquestalk_proc.returncode}: {err}")
+            elif aplay_proc.returncode != 0:
+                print(f"aplay failed: {aplay_stderr.decode('utf-8', errors='ignore')}")
             else:
-                print(f"AquesTalk speak completed in {t1-t0:.2f}s (wav: {len(wav_data)} bytes)")
+                print(f"AquesTalk speak completed (streamed) in {t1-t0:.2f}s")
 
         except FileNotFoundError:
             print(f"Error: AquesTalk Pi not found at {self.aquestalk_bin}")

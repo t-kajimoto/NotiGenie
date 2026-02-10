@@ -10,6 +10,7 @@ def mock_language_model():
     mock.select_databases = AsyncMock()
     mock.generate_tool_calls = AsyncMock()
     mock.generate_response = AsyncMock()
+    mock.perform_research = AsyncMock()
     return mock
 
 @pytest.fixture
