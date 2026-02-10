@@ -22,7 +22,8 @@ if not logger.handlers:
 class GeminiAdapter(ILanguageModel):
     """
     Gemini API (google-genai SDK) を使用したILanguageModelの実装クラス。
-    3ステップの思考プロセス（DB選択→ツール生成→応答生成）を実装します。
+    2ステップの思考プロセス（ツール生成→応答生成）を実装します。
+    統合データベース (master_db) を使用します。
     """
     def __init__(self, system_instruction_template: str, notion_database_mapping: dict):
         api_key = os.environ.get("GEMINI_API_KEY")
@@ -37,19 +38,6 @@ class GeminiAdapter(ILanguageModel):
     # ---------------------------------------------------------------------------
     # プロンプト構築メソッド群
     # ---------------------------------------------------------------------------
-    def _build_db_selection_instruction(self, current_date: str) -> str:
-        """【ステップ1: DB選択】用のシステムプロンプトを構築します。"""
-        db_summaries = ""
-        for db_name, db_info in self.notion_database_mapping.items():
-            title = db_info.get('title', db_name)
-            db_summaries += f"- {db_name} ({title}): {db_info['description']}\n"
-
-        prompt = f"""ユーザーの質問に回答するために、どのNotionデータベースを使用すべきか判断してください。
-本日付: {current_date}
-利用可能なデータベース:
-{db_summaries}
-ユーザーの意図に最も関連性の高いデータベース名を `select_databases` ツールを使って返してください。関連するDBがない場合は空リストを返してください。"""
-        return prompt
 
     def _build_tool_generation_instruction(self, current_date: str, single_db_schema: Dict[str, Any], research_results: str = "") -> str:
         """【ステップ2: ツールコール生成】用のシステムプロンプトを構築します。"""
@@ -73,13 +61,14 @@ class GeminiAdapter(ILanguageModel):
         if research_results:
             instruction += f"\n### Research Results (Google Search results):\n{research_results}\n"
 
-        # Groundingと新カラム対応の指示を追加
+        # 統合DB用のカラム指示を追加
         instruction += """
-Note for ToDo List:
-1. "Deadline" (Date): Set a concrete date for sorting (e.g., "2月中" -> 2026-02-28).
-2. "DisplayDate" (Text): Keep the user's original vague expression (e.g., "2月中", "来週").
-3. "Memo" (RichText): If the task needs research (e.g., "date ideas", "restaurant"), use the information from 'Research Results' above to fill this field.
-4. "DoneDate" (Date): Only set this when marking a task as Done (check "完了ボタン"). Use today's date.
+Note for Unified Database:
+1. "予定日" (Date): Set a concrete date for sorting (e.g., "来週" -> next Monday's date).
+2. "予定日表示" (RichText): Keep the user's original vague expression (e.g., "来週", "なる早").
+3. "メモ" (RichText): Include research results (address, hours, etc.) from 'Research Results' above.
+4. "完了日" (Date): Only set this when marking a task as Done. Use today's date. Empty = not done.
+5. "カテゴリ" (Select): Choose from Shopping, ToDo, Menu, Other based on user intent.
 """
         return instruction
 
@@ -170,53 +159,6 @@ Note for ToDo List:
             logger.error(f"Gemini API error: {e}")
             raise
 
-    async def select_databases(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> List[str]:
-        """【ステップ1: DB選択】ユーザーの質問に関連するNotionデータベースを選択します。"""
-        system_instruction = self._build_db_selection_instruction(current_date)
-        
-        # ツール定義
-        select_databases_tool = types.Tool(
-            function_declarations=[
-                types.FunctionDeclaration(
-                    name="select_databases",
-                    description="ユーザーの質問に関連するNotionデータベースを選択する",
-                    parameters={
-                        "type": "object",
-                        "properties": {
-                            "db_names": {
-                                "type": "array",
-                                "description": "関連するデータベース名のリスト",
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["db_names"]
-                    }
-                )
-            ]
-        )
-
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            tools=[select_databases_tool]
-        )
-
-        contents = []
-        if history:
-            contents.extend(history)
-        contents.append({"role": "user", "parts": [{"text": user_utterance}]})
-
-        logger.info("Step 1: Selecting databases...")
-        response = await self._run_gemini_async(contents, config)
-
-        selected_dbs = []
-        if response.candidates and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.function_call and part.function_call.name == "select_databases":
-                    args = part.function_call.args
-                    selected_dbs.extend(args.get("db_names", []))
-
-        logger.info(f"Selected databases: {selected_dbs}")
-        return selected_dbs
 
     async def perform_research(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> str:
         """【ステップ1.5: 調査】Google検索ツールを使用して外部情報を調査します。"""

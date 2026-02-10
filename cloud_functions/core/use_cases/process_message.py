@@ -9,7 +9,8 @@ logger = setup_logger(__name__)
 class ProcessMessageUseCase:
     """
     ユーザーメッセージを処理するビジネスロジック（ユースケース）。
-    3ステップの思考プロセス（DB選択→ツール生成→応答生成）を実装します。
+    2ステップの思考プロセス（ツール生成→応答生成）を実装します。
+    統合データベース (master_db) を使用します。
     """
 
     def __init__(self, language_model: ILanguageModel, notion_repository: INotionRepository, session_repository: ISessionRepository, help_message: str = ""):
@@ -30,20 +31,7 @@ class ProcessMessageUseCase:
             # セッション履歴を取得
             history = self.session_repository.get_recent_history(session_id, limit_minutes=SESSION_HISTORY_LIMIT_MINUTES)
 
-            # --- ステップ1: データベース選択 ---
-            selected_db_names = await self.language_model.select_databases(
-                user_utterance, current_date, history
-            )
-
-            if not selected_db_names:
-                # 関連するDBがない場合、通常のチャット応答を試みる
-                logger.info("No relevant databases selected. Generating a simple chat response.")
-                # generate_responseにツール結果なしで渡して、雑談応答させる
-                final_response = await self.language_model.generate_response(user_utterance, [], history)
-                self.session_repository.add_interaction(session_id, user_utterance, final_response)
-                return final_response
-
-            # --- ステップ1.5: 調査 (Research) ---
+            # --- ステップ1: 調査 (Research) ---
             # Gemini 2.5の制限を回避するため、Notionツール生成の前にGoogle検索で情報を収集します。
             research_results = await self.language_model.perform_research(
                 user_utterance, current_date, history
@@ -60,37 +48,35 @@ class ProcessMessageUseCase:
                 "append_block": self.notion_repository.append_block,
             }
 
-            # 選択された各DBに対してツールコールを生成・実行
-            for db_name in selected_db_names:
-                single_db_schema = self.db_schemas.get(db_name)
-                if not single_db_schema:
-                    logger.warning(f"Schema for database '{db_name}' not found. Skipping.")
-                    continue
+            # 統合データベース (master_db) のスキーマを取得
+            single_db_schema = self.db_schemas.get("master_db")
+            if not single_db_schema:
+                logger.error("Schema for 'master_db' not found in Firestore.")
+                raise ValueError("master_db schema not found")
 
-                tool_calls = await self.language_model.generate_tool_calls(
-                    user_utterance,
-                    current_date,
-                    list(available_tools.values()),
-                    single_db_schema,
-                    history,
-                    research_results=research_results
-                )
+            tool_calls = await self.language_model.generate_tool_calls(
+                user_utterance,
+                current_date,
+                list(available_tools.values()),
+                single_db_schema,
+                history,
+                research_results=research_results
+            )
 
-                # 生成されたツールコールを非同期で実行
-                tasks = []
-                for call in tool_calls:
-                    tool_name = call.get("name")
-                    tool_args = call.get("args", {})
-                    if tool_name in available_tools:
-                        # asyncio.to_threadを使って同期関数を非同期に実行
-                        task = asyncio.to_thread(available_tools[tool_name], **tool_args)
-                        tasks.append((tool_name, task))
+            # 生成されたツールコールを非同期で実行
+            tasks = []
+            for call in tool_calls:
+                tool_name = call.get("name")
+                tool_args = call.get("args", {})
+                if tool_name in available_tools:
+                    task = asyncio.to_thread(available_tools[tool_name], **tool_args)
+                    tasks.append((tool_name, task))
 
-                # asyncio.gatherで並列実行し、結果を収集
-                executed_results = await asyncio.gather(*(task for _, task in tasks))
+            # asyncio.gatherで並列実行し、結果を収集
+            executed_results = await asyncio.gather(*(task for _, task in tasks))
 
-                for (tool_name, _), result in zip(tasks, executed_results):
-                    all_tool_results.append({"name": tool_name, "result": result})
+            for (tool_name, _), result in zip(tasks, executed_results):
+                all_tool_results.append({"name": tool_name, "result": result})
 
             # --- ステップ3: 最終応答生成 ---
             # 検索ツール(grounding)が使われた場合、その結果も含めて応答生成される
