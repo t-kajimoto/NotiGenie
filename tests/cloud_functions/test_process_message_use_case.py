@@ -354,3 +354,74 @@ async def test_execute_multi_turn_search_then_create(
     
     assert final_response == "池上梅園をToDoに追加しました。"
 
+@pytest.mark.asyncio
+async def test_execute_create_with_vague_date(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """曖昧な日付(未定)の抽出テスト"""
+    # --- Arrange ---
+    user_utterance = "ハネムーンに行きたい"
+    current_date = "2024-01-01"
+
+    # ツールコール生成
+    # 期待されるプロパティ: 予定日表示="未定"
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
+            "name": "create_page",
+            "args": {
+                "database_name": "master_db",
+                "title": "ハネムーン",
+                "properties": {
+                    "カテゴリ": "ToDo",
+                    "予定日表示": "未定" # ここが重要
+                }
+            }
+        }],
+        []
+    ]
+
+    mock_language_model.generate_response.return_value = "ハネムーンをToDo（未定）に追加しました。"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    args = mock_language_model.generate_tool_calls.call_args_list[0].args
+    # 実際には引数の中身を検証したいが、mockのside_effectで定義したものが呼ばれる前提
+    # create_pageが正しい引数で呼ばれたかを確認
+    mock_notion_repository.create_page.assert_called_once()
+    call_kwargs = mock_notion_repository.create_page.call_args.kwargs
+    assert call_kwargs["title"] == "ハネムーン"
+    assert call_kwargs["properties"]["予定日表示"] == "未定"
+
+@pytest.mark.asyncio
+async def test_execute_with_history(
+    use_case, mock_language_model, mock_session_repository
+):
+    """会話履歴が正しくLLMに渡されることを確認"""
+    # --- Arrange ---
+    user_utterance = "続き"
+    current_date = "2024-01-01"
+    
+    # 過去の履歴
+    history_data = [
+        {"role": "user", "parts": ["前回の発言"]},
+        {"role": "model", "parts": ["前回の応答"]}
+    ]
+    mock_session_repository.get_recent_history.return_value = history_data
+    
+    mock_language_model.generate_tool_calls.side_effect = [[], []] # No tools
+    mock_language_model.generate_response.return_value = "応答"
+
+    # --- Act ---
+    await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    # get_recent_historyが呼ばれたか
+    mock_session_repository.get_recent_history.assert_called_once()
+    
+    # generate_tool_callsに履歴が渡されたか
+    # historyは5番目の位置引数 (user_utterance, current_date, tools, single_db_schema, history)
+    call_args = mock_language_model.generate_tool_calls.call_args
+    assert call_args.args[4] == history_data
+

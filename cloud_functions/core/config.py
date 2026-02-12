@@ -7,7 +7,7 @@ NotiGenie アプリケーション設定定数
 import os
 
 # セッション管理
-SESSION_HISTORY_LIMIT_MINUTES = int(os.environ.get("SESSION_HISTORY_LIMIT_MINUTES", "5"))
+SESSION_HISTORY_LIMIT_MINUTES = int(os.environ.get("SESSION_HISTORY_LIMIT_MINUTES", "60"))
 SESSION_MAX_HISTORY_LENGTH = int(os.environ.get("SESSION_MAX_HISTORY_LENGTH", "40"))
 
 # Firestore コレクション名
