@@ -238,3 +238,52 @@ async def test_execute_with_research(
     # ツールコール生成にリサーチ結果が渡されたか
     call_kwargs = mock_language_model.generate_tool_calls.call_args
     assert "research_results" in call_kwargs.kwargs or len(call_kwargs.args) > 5
+
+@pytest.mark.asyncio
+async def test_execute_with_notion_error(
+    use_case, mock_language_model, mock_notion_repository, mock_session_repository
+):
+    """Notionのcreate_pageがエラーを返した場合、エラー情報がgenerate_responseに渡されることをテスト"""
+    # --- Arrange ---
+    user_utterance = "牛乳を追加して"
+    current_date = "2024-01-01"
+
+    # ツールコール生成
+    mock_language_model.generate_tool_calls.return_value = [
+        {
+            "name": "create_page",
+            "args": {
+                "database_name": "master_db",
+                "title": "牛乳",
+                "properties": {"カテゴリ": "Shopping"}
+            }
+        }
+    ]
+
+    # Notionのcreate_pageがエラーを返す
+    error_result = {"error": "Notion API Error in create_page: validation_error - body failed validation."}
+    mock_notion_repository.create_page.return_value = error_result
+
+    # 応答生成 (エラー時のメッセージ)
+    mock_language_model.generate_response.return_value = "申し訳ありません、Notionへの登録に失敗しました。"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    # 1. create_pageが呼ばれたか
+    mock_notion_repository.create_page.assert_called_once()
+
+    # 2. generate_responseにエラー結果が渡されたか
+    call_args = mock_language_model.generate_response.call_args
+    tool_results = call_args[0][1]  # 第2引数 = tool_results
+    assert len(tool_results) == 1
+    assert tool_results[0]["name"] == "create_page"
+    assert "error" in tool_results[0]["result"]
+
+    # 3. 最終応答が返されたか
+    assert final_response == "申し訳ありません、Notionへの登録に失敗しました。"
+
+    # 4. セッションが保存されたか（エラー時でも会話は保存）
+    mock_session_repository.add_interaction.assert_called_once()
+

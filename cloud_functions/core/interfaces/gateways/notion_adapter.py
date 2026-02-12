@@ -439,6 +439,12 @@ class NotionAdapter(INotionRepository):
                      title_prop_name = k
                      break
 
+        # Geminiがpropertiesにタイトルを含めてしまう場合の防御処理
+        # タイトルは引数 title から設定するため、properties からは除去する
+        if title_prop_name in properties:
+            logger.warning(f"Removing title property '{title_prop_name}' from properties (use 'title' argument instead)")
+            properties = {k: v for k, v in properties.items() if k != title_prop_name}
+
         # フォーマット変換 (Simple values -> Notion API Objects)
         formatted_properties = self._format_properties_for_api(database_name, properties)
 

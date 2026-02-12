@@ -78,6 +78,11 @@ class ProcessMessageUseCase:
             for (tool_name, _), result in zip(tasks, executed_results):
                 all_tool_results.append({"name": tool_name, "result": result})
 
+            # Notion操作のエラーチェック: エラーがあった場合はログに記録
+            for tr in all_tool_results:
+                if isinstance(tr.get("result"), dict) and "error" in tr["result"]:
+                    logger.warning(f"Tool '{tr['name']}' returned error: {tr['result']['error']}")
+
             # --- ステップ3: 最終応答生成 ---
             # 検索ツール(grounding)が使われた場合、その結果も含めて応答生成される
             logger.info("Step 3: Generating final response with Autogrounding support...")
