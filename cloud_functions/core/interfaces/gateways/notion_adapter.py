@@ -129,10 +129,14 @@ class NotionAdapter(INotionRepository):
             prop_type = self._resolve_property_type(database_name, prop_name)
 
             # すでに辞書型で、Notion形式っぽい構造（'select', 'date' 等のキーがある）ならそのまま
-            # ただし、単純な辞書（例: {"start": "..."}）の場合もあるので、キー名で簡易判定
+            # ただし、単純な辞書（例: {"start": "..."}）の場合もあるので、キー名で判定
             if isinstance(value, dict) and prop_type in value:
                 formatted_props[prop_name] = value
                 continue
+
+            # [Round 9] AIが辞書形式でプロパティ内容を送ってきた場合の補完
+            # 例: value = {"start": "2026-02-18"} かつ prop_type = "date"
+            #     -> {"date": {"start": "2026-02-18"}} にラップする
 
             # 以下、型ごとの変換処理
             if prop_type == "title":
@@ -159,6 +163,8 @@ class NotionAdapter(INotionRepository):
             elif prop_type == "date":
                 if isinstance(value, str):
                     formatted_props[prop_name] = {"date": {"start": value}}
+                elif isinstance(value, dict):
+                    formatted_props[prop_name] = {"date": value}
                 else:
                     formatted_props[prop_name] = value
 
@@ -168,6 +174,8 @@ class NotionAdapter(INotionRepository):
             elif prop_type == "rich_text":
                 if isinstance(value, str):
                     formatted_props[prop_name] = {"rich_text": [{"text": {"content": value}}]}
+                elif isinstance(value, dict):
+                    formatted_props[prop_name] = {"rich_text": value}
                 else:
                     formatted_props[prop_name] = value
 
@@ -474,7 +482,7 @@ class NotionAdapter(INotionRepository):
             logger.error(msg)
             return {"error": msg}
 
-    def update_page(self, page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
+    def update_page(self, page_id: str, properties: Dict[str, Any], database_name: Optional[str] = None) -> Dict[str, Any]:
         """
         既存のページを更新します。ステータス変更などで使用されます。
         """
@@ -501,18 +509,19 @@ class NotionAdapter(INotionRepository):
         formatted_properties = {}
         for prop_name, value in properties.items():
             prop_type = None
-            found_db = None
+            found_db = database_name # [Round 9] 引数があればそれを優先
 
-            # プロパティ名から型を検索
-            for db_name, db_info in self.notion_database_mapping.items():
-                p_conf = db_info.get("properties", {}).get(prop_name)
-                if p_conf:
-                    prop_type = p_conf.get("type")
-                    found_db = db_name
-                    break
+            # データベース名が指定されていない場合は、プロパティ名から型を検索
+            if not found_db:
+                for db_name, db_info in self.notion_database_mapping.items():
+                    p_conf = db_info.get("properties", {}).get(prop_name)
+                    if p_conf:
+                        prop_type = p_conf.get("type")
+                        found_db = db_name
+                        break
 
             if found_db:
-                # 1つだけの辞書を作って変換メソッドを通す
+                # 変換メソッドを通す
                 temp_dict = self._format_properties_for_api(found_db, {prop_name: value})
                 formatted_properties.update(temp_dict)
             else:
