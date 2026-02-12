@@ -82,6 +82,7 @@ def test_convert_to_gemini_contents_multi_turn(adapter):
     assert contents[2].role == "tool"
     assert contents[2].parts[0].function_response.name == "search"
 
+# generate_responseが正しくAPIを呼ぶか
 @pytest.mark.asyncio
 async def test_generate_response_calls_api(adapter):
     """generate_responseが正しくAPIを呼ぶか"""
@@ -102,7 +103,28 @@ async def test_generate_response_calls_api(adapter):
     # Check args
     call_args = adapter.client.models.generate_content.call_args
     assert call_args.kwargs["model"] == adapter.model_name
-    assert len(call_args.kwargs["contents"]) == 1 # User utterance only (Reflection moved to system_instruction)
+    assert len(call_args.kwargs["contents"]) == 1 # User utterance only
+
+# [Round 9] generate_response がツール定義を受け取り、config に渡すことを確認
+@pytest.mark.asyncio
+async def test_generate_response_includes_tools(adapter):
+    """generate_response がツール定義を受け取り、config に渡すことを確認"""
+    adapter.client.models.generate_content = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.text = "OK"
+    adapter.client.models.generate_content.return_value = mock_response
+    
+    mock_tools = [types.Tool(function_declarations=[types.FunctionDeclaration(name="dummy")])]
+    
+    await adapter.generate_response("hello", [], tools=mock_tools)
+    
+    call_args = adapter.client.models.generate_content.call_args
+    config = call_args.kwargs["config"]
+    
+    # tools が渡されていること
+    assert config.tools == mock_tools
+    # かつ mode="NONE" であること
+    assert config.tool_config.function_calling_config.mode == "NONE"
 
 @pytest.mark.asyncio
 async def test_generate_response_uses_dynamic_system_instruction(adapter):

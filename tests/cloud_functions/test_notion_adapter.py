@@ -97,3 +97,37 @@ def test_update_page(notion_adapter, mock_notion_client):
     )
     assert isinstance(result, dict)
     assert result["status"] == "success"
+
+# [Round 9] _format_properties_for_api が辞書値を正しくラップすることを確認
+def test_format_properties_wraps_dict_values(notion_adapter):
+    notion_adapter.notion_database_mapping["TestDB"]["properties"]["予定日"] = {"type": "date"}
+    notion_adapter.notion_database_mapping["TestDB"]["properties"]["メモ"] = {"type": "rich_text"}
+    
+    raw_props = {
+        "名前": "Test",
+        "予定日": {"start": "2026-02-18"},
+        "メモ": {"rich_text": [{"text": {"content": "Hello"}}]} # すでにラップされている場合
+    }
+    
+    formatted = notion_adapter._format_properties_for_api("TestDB", raw_props)
+    
+    assert "date" in formatted["予定日"]
+    assert formatted["予定日"]["date"]["start"] == "2026-02-18"
+    assert "rich_text" in formatted["メモ"]
+    assert formatted["メモ"]["rich_text"][0]["text"]["content"] == "Hello"
+
+# [Round 9] update_page が database_name を使って型解決することを確認
+def test_update_page_with_database_name(notion_adapter, mock_notion_client):
+    notion_adapter.notion_database_mapping["TestDB"]["properties"]["Status"] = {"type": "select"}
+    mock_notion_client.pages.update.return_value = {"id": "page-123"}
+    
+    # database_name を指定して呼び出し
+    notion_adapter.update_page(
+        page_id="page-123", 
+        properties={"Status": "Done"},
+        database_name="TestDB"
+    )
+    
+    call_kwargs = mock_notion_client.pages.update.call_args[1]
+    # select 用のフォーマットにラップされていること
+    assert call_kwargs["properties"]["Status"] == {"select": {"name": "Done"}}
