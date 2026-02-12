@@ -1,36 +1,43 @@
 """
 E2E テスト用フィクスチャ
 
-実際の Gemini API と Notion テスト用 DB を使用します。
-テスト中に作成されたページは teardown で自動削除されます。
+実際の Gemini API、Notion テスト用 DB、Firestore（chat-history）を使用します。
+テスト中に作成されたリソースは teardown で自動削除されます。
 
 使い方:
-  1. tests/e2e/.env.test に実際の GEMINI_API_KEY と NOTION_API_KEY を設定
+  1. tests/e2e/.env.test に実際のAPIキーを設定 (.env.test.example を参考)
   2. pytest tests/e2e/ -v -s で実行
 """
 
 import os
 import sys
+import uuid
 import pytest
 from pathlib import Path
 from dotenv import load_dotenv
 
-# プロジェクトルートをパスに追加
+# ---------------------------------------------------------------------------
+# パス設定: プロジェクトルートと cloud_functions をインポート可能にする
+# ---------------------------------------------------------------------------
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 sys.path.insert(0, str(ROOT_DIR / "cloud_functions"))
 
-# .env.test から実APIキーをロード
+# ---------------------------------------------------------------------------
+# 環境変数: .env.test から実APIキーをロード
+# ---------------------------------------------------------------------------
 env_path = Path(__file__).parent / ".env.test"
 load_dotenv(env_path, override=True)
 
 # ---------------------------------------------------------------------------
 # テスト用DB定義
+# テスト用DB は本番 master_db と同一スキーマだが、別のNotionデータベースを使用する
 # ---------------------------------------------------------------------------
 TEST_DB_ID = "3051ac9c-8c70-812f-9acc-e15173a81bba"
 
 TEST_DB_SCHEMA = {
-    "test_master_db": {
+    # master_db としてマッピング（system_instruction が master_db を参照するため）
+    "master_db": {
         "title": "E2Eテスト用DB",
         "id": TEST_DB_ID,
         "description": "E2Eテスト専用。master_db と同一スキーマ。",
@@ -49,17 +56,15 @@ TEST_DB_SCHEMA = {
     }
 }
 
-# スキーマを master_db としても参照可能にする (system_instruction が master_db を参照するため)
-TEST_DB_SCHEMA["master_db"] = {
-    **TEST_DB_SCHEMA["test_master_db"],
-    "id": TEST_DB_ID,
-}
+# テスト用セッションIDのプレフィックス（クリーンアップ時に識別するため）
+TEST_SESSION_PREFIX = "e2e-test-"
 
 
 # ---------------------------------------------------------------------------
-# APIキー検証
+# APIキー検証: キーが設定されていない場合はテストをスキップ
 # ---------------------------------------------------------------------------
 def _check_api_keys():
+    """E2Eテストに必要な全APIキーが設定されているか検証する。"""
     gemini = os.environ.get("GEMINI_API_KEY", "")
     notion = os.environ.get("NOTION_API_KEY", "")
     if not gemini or gemini.startswith("your-") or gemini == "dummy":
@@ -77,6 +82,28 @@ def notion_adapter():
     _check_api_keys()
     from cloud_functions.core.interfaces.gateways.notion_adapter import NotionAdapter
     adapter = NotionAdapter(notion_database_mapping=TEST_DB_SCHEMA)
+    return adapter
+
+
+# ---------------------------------------------------------------------------
+# フィクスチャ: Firestore Adapter（実接続）
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def firestore_adapter():
+    """
+    実際のFirestoreに接続する FirestoreAdapter を返す。
+    環境変数 FIRESTORE_DATABASE で接続先DBを制御する（デフォルト: chat-history）。
+    """
+    _check_api_keys()
+    # GOOGLE_APPLICATION_CREDENTIALS が設定されているか確認
+    creds = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if not creds:
+        pytest.skip("GOOGLE_APPLICATION_CREDENTIALS が未設定です。tests/e2e/.env.test を確認してください。")
+
+    from cloud_functions.core.interfaces.gateways.firestore_adapter import FirestoreAdapter
+    adapter = FirestoreAdapter()
+    if not adapter.db:
+        pytest.skip("Firestoreへの接続に失敗しました。")
     return adapter
 
 
@@ -103,47 +130,37 @@ def gemini_adapter():
 
 
 # ---------------------------------------------------------------------------
-# フィクスチャ: ProcessMessageUseCase
+# フィクスチャ: ProcessMessageUseCase（全コンポーネント実接続）
 # ---------------------------------------------------------------------------
-class InMemorySessionRepository:
-    """E2Eテスト用の簡易セッションリポジトリ。Firestoreは使わない。"""
-
-    def __init__(self):
-        self._history = {}
-
-    def get_recent_history(self, session_id: str, limit_minutes: int = 60):
-        return self._history.get(session_id, [])
-
-    def save_history(self, session_id: str, history: list):
-        self._history[session_id] = history
-
-    def update_history(self, session_id: str, new_entries: list):
-        current = self._history.get(session_id, [])
-        current.extend(new_entries)
-        self._history[session_id] = current
-
-
 @pytest.fixture(scope="function")
-def use_case(gemini_adapter, notion_adapter):
+def use_case(gemini_adapter, notion_adapter, firestore_adapter):
     """
-    テスト用の ProcessMessageUseCase を返す。
-    セッション履歴はインメモリ。Notion はテスト用DB。
+    全コンポーネントが実APIに接続された ProcessMessageUseCase を返す。
+    Gemini API → 本物, Notion → テスト用DB, Firestore → 実接続
     """
     from cloud_functions.core.use_cases.process_message import ProcessMessageUseCase
 
-    session_repo = InMemorySessionRepository()
     uc = ProcessMessageUseCase(
         language_model=gemini_adapter,
         notion_repository=notion_adapter,
-        session_repository=session_repo,
+        session_repository=firestore_adapter,
     )
-    # db_schemas をテスト用スキーマで上書き
+    # db_schemas をテスト用スキーマで上書き（テスト用DBのIDを使わせるため）
     uc.db_schemas = TEST_DB_SCHEMA
     return uc
 
 
 # ---------------------------------------------------------------------------
-# フィクスチャ: クリーンアップ（テスト終了後にNotionページを削除）
+# フィクスチャ: テストごとに一意のセッションIDを生成
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="function")
+def session_id():
+    """テスト用の一意なセッションIDを生成する。"""
+    return f"{TEST_SESSION_PREFIX}{uuid.uuid4().hex[:8]}"
+
+
+# ---------------------------------------------------------------------------
+# フィクスチャ: テスト中に作成されたNotionページIDを収集
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="function")
 def created_page_ids():
@@ -151,13 +168,30 @@ def created_page_ids():
     return []
 
 
+# ---------------------------------------------------------------------------
+# 自動クリーンアップ: テスト終了後にNotionページとFirestoreセッションを削除
+# ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
-def cleanup_notion_pages(notion_adapter, created_page_ids, request):
-    """テスト終了後に作成されたページをアーカイブ（削除）する。"""
+def cleanup_test_resources(notion_adapter, firestore_adapter, created_page_ids, session_id):
+    """テスト終了後に作成されたリソースを自動削除する。"""
     yield
+
+    # 1. Notionページをアーカイブ（削除）
     for page_id in created_page_ids:
         try:
             notion_adapter.client.pages.update(page_id=page_id, archived=True)
-            print(f"  [CLEANUP] Archived page: {page_id}")
+            print(f"  [CLEANUP] Archived Notion page: {page_id}")
         except Exception as e:
-            print(f"  [CLEANUP WARNING] Failed to archive {page_id}: {e}")
+            print(f"  [CLEANUP WARNING] Failed to archive page {page_id}: {e}")
+
+    # 2. Firestoreのテスト用セッション履歴を削除
+    try:
+        doc_ref = firestore_adapter.db.collection(
+            firestore_adapter.session_collection_name
+        ).document(session_id)
+        doc = doc_ref.get()
+        if doc.exists:
+            doc_ref.delete()
+            print(f"  [CLEANUP] Deleted Firestore session: {session_id}")
+    except Exception as e:
+        print(f"  [CLEANUP WARNING] Failed to delete session {session_id}: {e}")
