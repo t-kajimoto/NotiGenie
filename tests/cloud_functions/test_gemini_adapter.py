@@ -102,3 +102,11 @@ async def test_generate_response_calls_api(adapter):
     call_args = adapter.client.models.generate_content.call_args
     assert call_args.kwargs["model"] == adapter.model_name
     assert len(call_args.kwargs["contents"]) == 1 # User utterance only
+
+def test_prompt_paths_resolve(adapter):
+    """プロンプトファイルのパスが正しく解決され、実体が存在するかを確認"""
+    import os
+    print(f"System Instruction Path: {adapter.system_instruction_path}")
+    print(f"Response Instruction Path: {adapter.response_instruction_path}")
+    assert os.path.exists(adapter.system_instruction_path)
+    assert os.path.exists(adapter.response_instruction_path)
