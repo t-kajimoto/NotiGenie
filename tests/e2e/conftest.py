@@ -16,6 +16,19 @@ import pytest
 from pathlib import Path
 from dotenv import load_dotenv
 
+
+# ---------------------------------------------------------------------------
+# Pytest Option: --keep-notion (Cleanup無効化)
+# ---------------------------------------------------------------------------
+def pytest_addoption(parser):
+    parser.addoption(
+        "--keep-notion",
+        action="store_true",
+        default=False,
+        help="テスト終了後にNotionページを削除せずに残す（手動確認用）",
+    )
+
+
 # ---------------------------------------------------------------------------
 # パス設定: プロジェクトルートと cloud_functions をインポート可能にする
 # ---------------------------------------------------------------------------
@@ -172,9 +185,20 @@ def created_page_ids():
 # 自動クリーンアップ: テスト終了後にNotionページとFirestoreセッションを削除
 # ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
-def cleanup_test_resources(notion_adapter, firestore_adapter, created_page_ids, session_id):
-    """テスト終了後に作成されたリソースを自動削除する。"""
+def cleanup_test_resources(request, notion_adapter, firestore_adapter, created_page_ids, session_id):
+    """テスト終了後に作成されたリソースを自動削除する（--keep-notion 指定時はスキップ）。"""
     yield
+
+    # --keep-notion オプションが指定されている場合はCleanupをスキップ
+    if request.config.getoption("--keep-notion"):
+        if created_page_ids:
+            print(f"\n  [KEEP] Processed Notion pages (not archived): {created_page_ids}")
+        # Firestoreのセッションも残す場合はここをコメントアウトするなど調整可能だが、
+        # 基本的にはNotionページが見たいはずなので、セッションは消しても良いかもしれない。
+        # 一旦、ユーザー要望は「Notionページ」なので、Notionだけスキップする形にするが、
+        # 続けて対話したいならセッションも残すべき。今回は両方残す。
+        print(f"  [KEEP] Firestore session: {session_id}")
+        return
 
     # 1. Notionページをアーカイブ（削除）
     for page_id in created_page_ids:
