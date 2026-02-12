@@ -1,23 +1,17 @@
 import os
 import json
 import asyncio
-import logging
-import sys
 import functools
 from google import genai
 from google.genai import types
 from typing import Dict, Any, List, Callable, Optional
 from ...domain.interfaces import ILanguageModel
+from ...logging_config import setup_logger, log_oneline
 
 # ---------------------------------------------------------------------------
 # ロギング設定
 # ---------------------------------------------------------------------------
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(handler)
+logger = setup_logger(__name__)
 
 class GeminiAdapter(ILanguageModel):
     """
@@ -175,6 +169,7 @@ class GeminiAdapter(ILanguageModel):
             contents.extend(history)
         contents.append({"role": "user", "parts": [{"text": user_utterance}]})
 
+        logger.info(f"[RESEARCH_INPUT] user_utterance={log_oneline(user_utterance)}")
         logger.info("Step 1.5: Performing research via Google Search...")
         response = await self._run_gemini_async(contents, config)
 
@@ -186,7 +181,7 @@ class GeminiAdapter(ILanguageModel):
             logger.info("Research either not required or empty.")
             return ""
 
-        logger.info(f"Research summary obtained: {research_summary[:100]}...")
+        logger.info(f"[RESEARCH_OUTPUT] summary={log_oneline(research_summary)}")
         return research_summary
 
     async def generate_tool_calls(
@@ -284,7 +279,8 @@ class GeminiAdapter(ILanguageModel):
              contents.extend(history)
         contents.append({"role": "user", "parts": [{"text": user_utterance}]})
 
-        logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}' with Search Grounding...")
+        logger.info(f"[TOOL_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, system_instruction={log_oneline(system_instruction, max_length=300)}")
+        logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}'...")
         response = await self._run_gemini_async(contents, config)
 
         tool_calls = []
@@ -296,7 +292,7 @@ class GeminiAdapter(ILanguageModel):
                         "args": part.function_call.args
                     })
 
-        logger.info(f"Generated tool calls: {tool_calls}")
+        logger.info(f"[TOOL_GEN_OUTPUT] tool_calls={tool_calls}")
         return tool_calls
 
     async def generate_response(
@@ -341,6 +337,7 @@ class GeminiAdapter(ILanguageModel):
             # ここでは 'function' role を試行
             contents.append({"role": "function", "parts": parts})
 
+        logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, tool_results_count={len(tool_results)}")
         logger.info("Step 3: Generating final response...")
         response = await self._run_gemini_async(contents, config)
 

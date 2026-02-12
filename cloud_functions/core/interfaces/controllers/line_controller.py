@@ -6,6 +6,9 @@ import asyncio
 import datetime
 from zoneinfo import ZoneInfo
 from ...use_cases.process_message import ProcessMessageUseCase
+from ...logging_config import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class LineController:
@@ -46,7 +49,7 @@ class LineController:
             self.parser = None
             self.api_client = None
             self.messaging_api = None
-            print("Warning: LINE credentials not found. LINE bot features will be disabled.")
+            logger.warning("LINE credentials not found. LINE bot features will be disabled.")
 
     async def handle_request(self, body: str, signature: str):
         """
@@ -96,6 +99,7 @@ class LineController:
         reply_token = event.reply_token
         # LINE User IDを取得してセッションIDとして使用
         user_id = event.source.user_id if hasattr(event.source, 'user_id') else "unknown_user"
+        logger.info(f"[LINE_RECEIVED] user_id={user_id}, message={user_utterance}")
 
         # JSTで現在日付を取得
         # なぜ必要か: Notionのタスク管理などで「今日のタスク」などを検索する際、
@@ -144,7 +148,7 @@ class LineController:
                     )
                 )
             except Exception as e:
-                print(f"Error in delayed processing: {e}")
+                logger.error(f"Error in delayed processing: {e}")
                 self.messaging_api.push_message(
                     PushMessageRequest(
                         to=user_id,
@@ -153,7 +157,7 @@ class LineController:
                 )
 
         except Exception as e:
-            print(f"Error processing LINE message: {e}")
+            logger.error(f"Error processing LINE message: {e}")
             # エラー時もユーザーに応答を返す（UX向上のため）
             # 既読スルー状態にせず、システムエラーであることを伝えます
             if self.messaging_api:
@@ -165,5 +169,5 @@ class LineController:
                         )
                     )
                 except Exception as inner_e:
-                    print(f"Error sending error message: {inner_e}")
+                    logger.error(f"Error sending error message: {inner_e}")
 

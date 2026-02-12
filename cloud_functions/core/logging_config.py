@@ -32,3 +32,17 @@ def setup_logger(name: str) -> logging.Logger:
     logger.addHandler(handler)
     
     return logger
+
+
+def log_oneline(text: str, max_length: int = 200) -> str:
+    """
+    ログ出力用に改行をスペースに変換し、長い文字列を切り詰めます。
+    Cloud Logging で1ログ=1行を維持するためのユーティリティです。
+    """
+    if not text:
+        return ""
+    text = str(text)
+    oneline = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    if len(oneline) > max_length:
+        return oneline[:max_length] + "..."
+    return oneline

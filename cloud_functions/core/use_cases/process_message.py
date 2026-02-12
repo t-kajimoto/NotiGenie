@@ -1,6 +1,6 @@
 from ..domain.interfaces import ILanguageModel, INotionRepository, ISessionRepository
 from ..config import SESSION_HISTORY_LIMIT_MINUTES
-from ..logging_config import setup_logger
+from ..logging_config import setup_logger, log_oneline
 import asyncio
 from typing import Dict, Any
 
@@ -23,6 +23,9 @@ class ProcessMessageUseCase:
 
     async def execute(self, user_utterance: str, current_date: str, session_id: str = "default") -> str:
         try:
+            # [INPUT] ユーザーメッセージと処理コンテキストを記録
+            logger.info(f"[INPUT] user_utterance={log_oneline(user_utterance)}, session_id={session_id}, date={current_date}")
+
             # ヘルプ機能: 特定のキーワードでヘルプメッセージを返す
             if user_utterance.strip().lower() in ["help", "ヘルプ", "へるぷ"]:
                 logger.info("Help keyword detected. Returning help message.")
@@ -30,12 +33,14 @@ class ProcessMessageUseCase:
 
             # セッション履歴を取得
             history = self.session_repository.get_recent_history(session_id, limit_minutes=SESSION_HISTORY_LIMIT_MINUTES)
+            logger.info(f"[HISTORY] count={len(history)}")
 
             # --- ステップ1: 調査 (Research) ---
             # Gemini 2.5の制限を回避するため、Notionツール生成の前にGoogle検索で情報を収集します。
             research_results = await self.language_model.perform_research(
                 user_utterance, current_date, history
             )
+            logger.info(f"[RESEARCH] result={log_oneline(research_results)}")
 
             # --- ステップ2: ツールコール生成 & 実行 ---
             all_tool_results = []
@@ -62,6 +67,7 @@ class ProcessMessageUseCase:
                 history,
                 research_results=research_results
             )
+            logger.info(f"[TOOL_CALLS] calls={tool_calls}")
 
             # 生成されたツールコールを非同期で実行
             tasks = []
@@ -78,20 +84,24 @@ class ProcessMessageUseCase:
             for (tool_name, _), result in zip(tasks, executed_results):
                 all_tool_results.append({"name": tool_name, "result": result})
 
+            # [TOOL_RESULTS] ツール実行結果を記録
+            logger.info(f"[TOOL_RESULTS] results={log_oneline(str(all_tool_results), max_length=500)}")
+
             # Notion操作のエラーチェック: エラーがあった場合はログに記録
             for tr in all_tool_results:
                 if isinstance(tr.get("result"), dict) and "error" in tr["result"]:
-                    logger.warning(f"Tool '{tr['name']}' returned error: {tr['result']['error']}")
+                    logger.warning(f"[TOOL_ERROR] tool={tr['name']}, error={tr['result']['error']}")
 
             # --- ステップ3: 最終応答生成 ---
-            # 検索ツール(grounding)が使われた場合、その結果も含めて応答生成される
-            logger.info("Step 3: Generating final response with Autogrounding support...")
+            logger.info("Step 3: Generating final response...")
             
             final_response = await self.language_model.generate_response(
                 user_utterance,
                 all_tool_results,
                 history
             )
+
+            logger.info(f"[RESPONSE] text={log_oneline(final_response)}")
 
             # 会話を保存
             self.session_repository.add_interaction(session_id, user_utterance, final_response)
