@@ -170,38 +170,19 @@ class GeminiAdapter(ILanguageModel):
         """User input, history, and tool results converted to Gemini API content list."""
         contents = []
         
-        # 1. Add History
+        # 1. Add History (Older turns)
         if history:
             converted_history = self._convert_contents(history)
             contents.extend(converted_history)
             
-        # 2. Add User Utterance (if not already in history or current_turn_history)
-        # In a multi-turn loop, user_utterance is the initial trigger. 
-        # We need to make sure it's present.
-        # Simple strategy: Always add user_utterance as a new turn if it's the start of processing,
-        # otherwise (in loop) it might be better to rely on what's passed in current_turn_history.
+        # 2. Add Current Session (User Utterance + Tool Interaction)
+        # Reconstruct the sequence: User -> [Model -> Tool]* -> [System Reminder]
         
-        if not current_turn_history and not tool_results:
-             # Initial turn
-             contents.append(types.Content(role="user", parts=[types.Part(text=user_utterance)]))
-        elif current_turn_history:
+        session_contents = []
+        session_contents.append(types.Content(role="user", parts=[types.Part(text=user_utterance)]))
+        
+        if current_turn_history:
              # Multi-turn processing
-             # First, ensure user_utterance is at the beginning of this session if not in history
-             # (This depends on how use_case constructs history. Assuming use_case manages history persistence ONLY at the end)
-             
-             # We need to reconstruct the "current session" flow:
-             # User -> Model (Tool Call) -> Function (Result) -> ...
-             
-             # If history is empty, we must start with User.
-             # If history ends with Model, we expect Function.
-             
-             # To be safe, we reconstruct the full sequence of the current interaction:
-             # [User Utterance] + [Current Turn History (Model calls, Function results)]
-             
-             session_contents = []
-             session_contents.append(types.Content(role="user", parts=[types.Part(text=user_utterance)]))
-             
-             # Convert current_turn_history (dicts) to Content
              for turn in current_turn_history:
                  if turn['role'] == 'model':
                      parts = []
@@ -226,9 +207,29 @@ class GeminiAdapter(ILanguageModel):
                              ))
                      # SDK v0.2: function response is usually in 'tool' role
                      session_contents.append(types.Content(role="tool", parts=parts))
+        
+        elif tool_results:
+             # Legacy or single-turn results (if any)
+             parts = []
+             for res in tool_results:
+                  parts.append(types.Part(
+                      function_response=types.FunctionResponse(
+                          name=res["name"],
+                          response={"content": res["result"]}
+                      )
+                  ))
+             # We need a model call before a function response to satisfy SDK structure
+             # But here we just want the model to see the results. 
+             # For Step 3, we can append a reminder.
+             session_contents.append(types.Content(role="tool", parts=parts))
 
-             contents.extend(session_contents)
+        else:
+             # No tools were called at all
+             # We add a hidden "system" reminder as a user message to trigger response check
+             # (Gemini 2.5 response_instruction usually works better if it sees the discrepancy)
+             pass
 
+        contents.extend(session_contents)
         return contents
 
     async def perform_research(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> str:
@@ -397,8 +398,16 @@ class GeminiAdapter(ILanguageModel):
         )
 
         # 履歴と現在のターンを結合してコンテンツを作成
-        # generate_response が呼ばれるときは、通常 current_turn_history (Model Call + Function Response) が構築済み
         contents = self._convert_to_gemini_contents(user_utterance, history, tool_results, current_turn_history)
+
+        # 幻覚防止のための最終念押し (Reflection Prompt)
+        # 会話の最後に、明示的に「結果を確認しなさい」という命令を追加する
+        if tool_results:
+             reflection_text = f"ツール実行結果は {len(tool_results)} 件です。結果に基づき、正確に回答を生成してください。"
+        else:
+             reflection_text = "ツールは1つも実行されませんでした。保存や作成が依頼されている場合、嘘をつかずに正直に『実行できませんでした』と回答してください。"
+
+        contents.append(types.Content(role="user", parts=[types.Part(text=reflection_text)]))
 
         try:
             # Use the existing async wrapper to call the API

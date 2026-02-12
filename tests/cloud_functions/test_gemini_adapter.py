@@ -101,7 +101,7 @@ async def test_generate_response_calls_api(adapter):
     # Check args
     call_args = adapter.client.models.generate_content.call_args
     assert call_args.kwargs["model"] == adapter.model_name
-    assert len(call_args.kwargs["contents"]) == 1 # User utterance only
+    assert len(call_args.kwargs["contents"]) == 2 # User utterance + Reflection prompt
 
 def test_prompt_paths_resolve(adapter):
     """プロンプトファイルのパスが正しく解決され、実体が存在するかを確認"""
@@ -110,3 +110,25 @@ def test_prompt_paths_resolve(adapter):
     print(f"Response Instruction Path: {adapter.response_instruction_path}")
     assert os.path.exists(adapter.system_instruction_path)
     assert os.path.exists(adapter.response_instruction_path)
+
+@pytest.mark.asyncio
+async def test_generate_response_adds_reflection_prompt(adapter):
+    """generate_responseが幻覚防止用のリフレクションプロンプトを最後に追加するか確認"""
+    user_utterance = "Save this"
+    tool_results = [] # ツールなし
+    
+    mock_response = MagicMock()
+    mock_response.text = "I failed"
+    adapter.client.models.generate_content.return_value = mock_response
+
+    await adapter.generate_response(user_utterance, tool_results)
+
+    # Check the last content sent to the model
+    call_args = adapter.client.models.generate_content.call_args
+    contents = call_args.kwargs["contents"]
+    
+    # contents should be: [User(Utterance), User(Reflection)]
+    assert len(contents) == 2
+    assert contents[-1].role == "user"
+    assert "ツールは1つも実行されませんでした" in contents[-1].parts[0].text
+
