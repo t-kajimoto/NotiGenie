@@ -42,44 +42,42 @@ async def test_get_todo_list_success(mock_notion_adapter):
         {
             "title": "Task A (Urgent)",
             "properties": {
-                "Status": {"name": "Not started"},
-                "Deadline": {"start": yesterday}, # 昨日期限（期限切れ）
-                "DisplayDate": "昨日まで",
-                "Memo": "急ぎ"
+                "完了日": None,
+                "予定日": {"start": yesterday}, # 昨日期限（期限切れ）
+                "予定日表示": "昨日まで",
+                "メモ": "急ぎ"
             }
         },
         # 2. 未完了: 期限遠い (表示されるべき)
         {
             "title": "Task B (Future)",
             "properties": {
-                "Status": {"name": "In progress"},
-                "Deadline": {"start": future},
-                "DisplayDate": "いつか",
+                "完了日": None,
+                "予定日": {"start": future},
+                "予定日表示": "いつか",
             }
         },
         # 3. 完了: 昨日 (表示されるべき)
         {
             "title": "Task Done A",
             "properties": {
-                "Status": {"name": "Done"},
-                "DoneDate": {"start": yesterday},
-                "Deadline": {"start": yesterday}
+                "完了日": {"start": yesterday},
+                "予定日": {"start": yesterday}
             }
         },
         # 4. 完了: 4日前 (表示されないべき)
         {
             "title": "Task Done Old",
             "properties": {
-                "Status": {"name": "Done"},
-                "DoneDate": {"start": four_days_ago}
+                "完了日": {"start": four_days_ago}
             }
         },
         # 5. 未完了: 期限なし (最後に表示)
         {
             "title": "Task No Deadline",
             "properties": {
-                "Status": {"name": "Not started"},
-                # Deadline なし
+                "完了日": None,
+                # 予定日 なし
             }
         }
     ]
@@ -122,13 +120,13 @@ async def test_get_todo_list_no_db_mapping(mock_notion_adapter):
 @pytest.mark.asyncio
 async def test_get_todo_list_text_properties(mock_notion_adapter):
     """プロパティがテキスト型（Status="完了"など）で返ってきた場合の互換性"""
-    
+    today_str = datetime.date.today().strftime('%Y-%m-%d')
     mock_notion_adapter.search_database.return_value = [
         {
             "title": "Text Prop Task",
             "properties": {
-                "ステータス": "完了", # 辞書ではなく文字列
-                "期限": {"start": "2024-01-01"},
+                "完了日": today_str, 
+                "予定日": {"start": today_str},
                 "メモ": "テキストメモ"
             }
         }

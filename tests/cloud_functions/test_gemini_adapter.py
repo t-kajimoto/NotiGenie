@@ -109,8 +109,10 @@ async def test_generate_response_uses_dynamic_system_instruction(adapter):
     """回答生成時にツール結果に応じたシステムプロンプトが注入されるかを確認"""
     adapter.client.models.generate_content = MagicMock()
     
+    # Clear the fixed response_instruction so it uses the mocked _get_response_instruction
+    adapter.response_instruction = ""
     # Mocking _get_response_instruction to return a template
-    adapter._get_response_instruction = MagicMock(return_value="{tool_execution_status}\nBase instruction")
+    adapter._get_response_instruction = MagicMock(return_value="{tool_execution_status}\nBase instruction\n{research_results}")
     
     # 1. ツール実行なしの場合
     await adapter.generate_response("hello", [], [])
@@ -123,6 +125,14 @@ async def test_generate_response_uses_dynamic_system_instruction(adapter):
     call_args = adapter.client.models.generate_content.call_args
     system_instruction = call_args.kwargs["config"].system_instruction
     assert "ツール実行結果は 1 件です" in system_instruction
+
+    # 3. 調査結果がある場合 (Round 4)
+    research_results = "HoneyMoon in Hawaii"
+    adapter._get_response_instruction = MagicMock(return_value="{tool_execution_status}\n{research_results}")
+    await adapter.generate_response("hello", [], [], research_results=research_results)
+    call_args = adapter.client.models.generate_content.call_args
+    system_instruction = call_args.kwargs["config"].system_instruction
+    assert "HoneyMoon in Hawaii" in system_instruction
 
 def test_prompt_paths_resolve(adapter):
     """プロンプトファイルのパスが正しく解決され、実体が存在するかを確認"""
