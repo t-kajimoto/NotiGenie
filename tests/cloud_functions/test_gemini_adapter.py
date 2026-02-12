@@ -179,6 +179,10 @@ async def test_generate_tool_calls_uses_deterministic_config(adapter):
     assert call_args.kwargs["config"].tools is not None
     assert len(call_args.kwargs["config"].tools) > 0
 
+    # 4. 関数がある場合は tool_config (FunctionCallingConfig) が設定されていること (Round 7)
+    assert call_args.kwargs["config"].tool_config is not None
+    assert call_args.kwargs["config"].tool_config.function_calling_config is not None
+
 @pytest.mark.asyncio
 async def test_perform_research_uses_shared_config(adapter):
     """リサーチ時に適切なツール構成が使われることを確認 (Round 6)"""
@@ -192,7 +196,11 @@ async def test_perform_research_uses_shared_config(adapter):
     call_args = adapter.client.models.generate_content.call_args
     config = call_args.kwargs["config"]
     
-    # tools に Goole Search が含まれていること
+    # 1. tools に Google Search が含まれていること
     assert config.tools is not None
     assert any(hasattr(t, 'google_search') or 'google_search' in str(t) for t in config.tools)
+
+    # 2. 関数がない場合は tool_config (FunctionCallingConfig) が None であること (Round 7)
+    # これにより 400 INVALID_ARGUMENT を回避
+    assert config.tool_config is None
 

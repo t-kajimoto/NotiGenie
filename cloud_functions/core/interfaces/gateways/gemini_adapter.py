@@ -168,9 +168,17 @@ class GeminiAdapter(ILanguageModel):
 
     def _get_model_config(self, system_instruction: str, tool_mode: str = "AUTO", temperature: float = 0.7, tools: Optional[List[types.Tool]] = None) -> types.GenerateContentConfig:
         """Gemini API 呼び出し用の共通コンフィグを作成します。"""
-        # tool_mode に応じた設定 (SDK v0.2 準拠)
+        # [Round 7] tools 内に関数定義が含まれているかチェック
+        # 関数定義がないのに function_calling_config を送ると 400 INVALID_ARGUMENT になるため
+        has_functions = False
+        if tools:
+            for tool in tools:
+                if tool.function_declarations:
+                    has_functions = True
+                    break
+
         tool_config = None
-        if tool_mode in ["NONE", "AUTO", "ANY"]:
+        if has_functions and tool_mode in ["NONE", "AUTO", "ANY"]:
             tool_config = types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
                     mode=tool_mode
