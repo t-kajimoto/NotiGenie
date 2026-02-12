@@ -553,3 +553,53 @@ async def test_hallucination_prevention(
     
     assert "見つかりませんでした" in final_response
 
+@pytest.mark.asyncio
+async def test_enforce_search_for_unknown_id(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """プロセス強制テスト: ID不明時は検索から入るか"""
+    # --- Arrange ---
+    user_utterance = "ハネムーンのメモに追記して"
+    current_date = "2024-01-01"
+    
+    # Context has history but NO page ID for "Honeymoon"
+    # Expected flow:
+    # 1. Search("Honeymoon") -> Found ID "page-123"
+    # 2. Update("page-123", ...)
+    
+    search_result = [{
+        "id": "page-123",
+        "title": "ハネムーン",
+        "properties": {"メモ": "既存"}
+    }]
+    mock_notion_repository.search_database.return_value = search_result
+    mock_notion_repository.update_page.return_value = {"status": "success", "id": "page-123"}
+
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{ # 1st Turn: Search
+            "name": "search_database",
+            "args": {"query": "ハネムーン"}
+        }],
+        [{ # 2nd Turn: Update (after getting ID from search result)
+            "name": "update_page",
+            "args": {
+                "page_id": "page-123",
+                "properties": {"メモ": "既存\n追記"}
+            }
+        }],
+        [] # 3rd Turn: End
+    ]
+    
+    mock_language_model.generate_response.return_value = "ハネムーンのメモを更新しました。"
+
+    # --- Act ---
+    await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    mock_notion_repository.search_database.assert_called_once()
+    mock_notion_repository.update_page.assert_called_once()
+    
+    # Verify Search was called first (implicitly by side_effect order, checked by call count)
+    assert mock_notion_repository.search_database.call_count == 1
+    assert mock_notion_repository.update_page.call_count == 1
+

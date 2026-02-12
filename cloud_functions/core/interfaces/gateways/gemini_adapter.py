@@ -148,6 +148,21 @@ class GeminiAdapter(ILanguageModel):
             logger.error(f"Gemini API error: {e}")
             raise
 
+    def _get_system_instruction(self) -> str:
+        try:
+            with open(self.system_instruction_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            logger.error(f"System instruction file not found at {self.system_instruction_path}")
+            return "You are a helpful assistant."
+
+    def _get_response_instruction(self) -> str:
+        try:
+            with open(self.response_instruction_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            logger.warning(f"Response instruction file not found at {self.response_instruction_path}")
+            return ""
 
     async def perform_research(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> str:
         """【ステップ1.5: 調査】Google検索ツールを使用して外部情報を調査します。"""
@@ -349,10 +364,53 @@ class GeminiAdapter(ILanguageModel):
         if current_turn_history:
              logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, current_turn_history_len={len(current_turn_history)}")
         else:
-             logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, tool_results_count={len(tool_results)}")
+             logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, tool_results_count={len(tool_results)}")        # ステップ3: 最終回答の生成
         logger.info("Step 3: Generating final response...")
-        response = await self._run_gemini_async(contents, config)
 
+        # 最終回答生成用のプロンプトを取得
+        # ここで「ツール実行結果を確認し、やっていないことをやったと言うな」という指示を与える
+        instruction = self._get_response_instruction()
+        if not instruction:
+             # フォールバック: ファイルが見つからない場合はシステム全体の指示を使う（最低限の防御）
+             instruction = self._get_system_instruction()
+
+        model = GenAI(
+            model_name=self.model_name,
+            system_instruction=instruction
+        )
+
+        chat = model.start_chat(history=converted_history)
+        
+        # ユーザーの発言を送信して回答を得る
+        # historyにはこれまでのやり取り（ユーザー発言、モデルのツール呼び出し、ツールの実行結果）が全て含まれている
+        # したがって、ここで再度 user_utterance を送る必要はない（historyの最後がツール結果であれば、モデルは続きを生成する）
+        # ただし、Geminiの仕様として、ツール結果の後に「結果を踏まえて回答して」というユーザープロンプトを送るのが一般的
+        
+        # ここでは、historyが正しく構築されていれば、そのまま send_message で空文字を送るか、
+        # あるいは明示的に「Generate response based on these tool results」と送る。
+        # _convert_to_gemini_contents の実装を見ると、history はリストで返される。
+        # start_chat(history=...) した直後の send_message で何をるかが重要。
+        
+        # 現状の実装（未修正部分）を確認すると、
+        # response = chat.send_message(user_utterance) となっている可能性が高い。
+        # しかし、user_utterance は既に history の最初の方に含まれているはず。
+        # マルチターンの場合、直前のターンは「ツール実行結果」であるべき。
+
+        # 簡易実装として、historyをすべてcontentsとして渡す generate_content を使用する
+        # これなら状態管理を気にせず、全コンテキストを渡せる
+        
+        contents = self._convert_to_gemini_contents(user_utterance, history, tool_results)
+
+        response = model.generate_content(
+            contents=contents,
+            generation_config=types.GenerationConfig(
+                temperature=0.7 # 少し自然な会話にする
+            )
+        )
+
+        # logger.info(f"Final response text: {response.text}") # response object might not have text attribute directly accessible like this if it is a GenerationResponse
+        # But looking at google.generativeai python lib, response.text is property.
+        
         if response.text:
             logger.info(f"Final response text: {response.text}")
             return response.text
