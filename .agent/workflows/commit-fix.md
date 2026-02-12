@@ -1,5 +1,5 @@
 ---
-description: 変更をコミットしてプッシュする
+description: 変更を細かい単位に分けてコミットする
 ---
 
 // turbo-all
