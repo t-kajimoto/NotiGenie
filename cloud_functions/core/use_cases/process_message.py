@@ -42,9 +42,10 @@ class ProcessMessageUseCase:
             )
             logger.info(f"[RESEARCH] result={log_oneline(research_results)}")
 
-            # --- ステップ2: ツールコール生成 & 実行 ---
+            # --- ステップ2: ツールコール生成 & 実行 (Multi-turn Loop) ---
             all_tool_results = []
-
+            current_turn_history = []
+            
             # 利用可能なツール関数を辞書としてマッピング
             available_tools = {
                 "search_database": self.notion_repository.search_database,
@@ -59,38 +60,65 @@ class ProcessMessageUseCase:
                 logger.error("Schema for 'master_db' not found in Firestore.")
                 raise ValueError("master_db schema not found")
 
-            tool_calls = await self.language_model.generate_tool_calls(
-                user_utterance,
-                current_date,
-                list(available_tools.values()),
-                single_db_schema,
-                history,
-                research_results=research_results
-            )
-            logger.info(f"[TOOL_CALLS] calls={tool_calls}")
+            MAX_TURNS = 3
+            for turn in range(MAX_TURNS):
+                logger.info(f"[TURN {turn + 1}/{MAX_TURNS}] Generating tool calls...")
+                
+                tool_calls = await self.language_model.generate_tool_calls(
+                    user_utterance,
+                    current_date,
+                    list(available_tools.values()),
+                    single_db_schema,
+                    history,
+                    research_results=research_results,
+                    current_turn_history=current_turn_history
+                )
+                logger.info(f"[TURN {turn + 1}] calls={tool_calls}")
 
-            # 生成されたツールコールを非同期で実行
-            tasks = []
-            for call in tool_calls:
-                tool_name = call.get("name")
-                tool_args = call.get("args", {})
-                if tool_name in available_tools:
-                    task = asyncio.to_thread(available_tools[tool_name], **tool_args)
-                    tasks.append((tool_name, task))
+                if not tool_calls:
+                    logger.info(f"[TURN {turn + 1}] No tool calls generated. Breaking loop.")
+                    break
 
-            # asyncio.gatherで並列実行し、結果を収集
-            executed_results = await asyncio.gather(*(task for _, task in tasks))
+                # 生成されたツールコールを非同期で実行
+                tasks = []
+                for call in tool_calls:
+                    tool_name = call.get("name")
+                    tool_args = call.get("args", {})
+                    if tool_name in available_tools:
+                        task = asyncio.to_thread(available_tools[tool_name], **tool_args)
+                        tasks.append((tool_name, task))
 
-            for (tool_name, _), result in zip(tasks, executed_results):
-                all_tool_results.append({"name": tool_name, "result": result})
+                # asyncio.gatherで並列実行し、結果を収集
+                executed_results = await asyncio.gather(*(task for _, task in tasks))
 
-            # [TOOL_RESULTS] ツール実行結果を記録
-            logger.info(f"[TOOL_RESULTS] results={log_oneline(str(all_tool_results), max_length=500)}")
+                # 今回のターンの結果を収集
+                turn_results = []
+                for (tool_name, _), result in zip(tasks, executed_results):
+                    turn_results.append({"name": tool_name, "result": result})
+                    all_tool_results.append({"name": tool_name, "result": result}) # 全体履歴にも追加
+                    
+                    if isinstance(result, dict) and "error" in result:
+                        logger.warning(f"[TOOL_ERROR] tool={tool_name}, error={result['error']}")
 
-            # Notion操作のエラーチェック: エラーがあった場合はログに記録
-            for tr in all_tool_results:
-                if isinstance(tr.get("result"), dict) and "error" in tr["result"]:
-                    logger.warning(f"[TOOL_ERROR] tool={tr['name']}, error={tr['result']['error']}")
+                logger.info(f"[TURN {turn + 1}] results={log_oneline(str(turn_results), max_length=500)}")
+
+                # current_turn_history を更新
+                # 1. Model's tool calls
+                model_parts = []
+                for tc in tool_calls:
+                    model_parts.append({"function_call": {"name": tc["name"], "args": tc["args"]}})
+                current_turn_history.append({"role": "model", "parts": model_parts})
+
+                # 2. Function responses
+                function_parts = []
+                for tr in turn_results:
+                    function_parts.append({
+                        "function_response": {
+                            "name": tr["name"],
+                            "response": {"content": tr["result"]} 
+                        }
+                    })
+                current_turn_history.append({"role": "function", "parts": function_parts})
 
             # --- ステップ3: 最終応答生成 ---
             logger.info("Step 3: Generating final response...")
@@ -98,7 +126,8 @@ class ProcessMessageUseCase:
             final_response = await self.language_model.generate_response(
                 user_utterance,
                 all_tool_results,
-                history
+                history,
+                current_turn_history=current_turn_history
             )
 
             logger.info(f"[RESPONSE] text={log_oneline(final_response)}")

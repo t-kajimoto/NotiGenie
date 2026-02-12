@@ -187,7 +187,8 @@ class GeminiAdapter(ILanguageModel):
     async def generate_tool_calls(
         self, user_utterance: str, current_date: str, tools: List[Callable],
         single_db_schema: Dict[str, Any], history: List[Dict[str, Any]] = None,
-        research_results: str = ""
+        research_results: str = "",
+        current_turn_history: List[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         system_instruction = self._build_tool_generation_instruction(current_date, single_db_schema, research_results)
         
@@ -279,6 +280,9 @@ class GeminiAdapter(ILanguageModel):
              contents.extend(history)
         contents.append({"role": "user", "parts": [{"text": user_utterance}]})
 
+        if current_turn_history:
+            contents.extend(current_turn_history)
+
         logger.info(f"[TOOL_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, system_instruction={log_oneline(system_instruction, max_length=300)}")
         logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}'...")
         response = await self._run_gemini_async(contents, config)
@@ -296,14 +300,19 @@ class GeminiAdapter(ILanguageModel):
         return tool_calls
 
     async def generate_response(
-        self, user_utterance: str, tool_results: List[Dict[str, Any]], history: List[Dict[str, Any]] = None
+        self, user_utterance: str, tool_results: List[Dict[str, Any]], history: List[Dict[str, Any]] = None,
+        current_turn_history: List[Dict[str, Any]] = None
     ) -> str:
         system_instruction = self._build_response_generation_instruction()
         config = types.GenerateContentConfig(system_instruction=system_instruction)
 
         contents = history or []
         
-        if not tool_results:
+        if current_turn_history:
+            # マルチターン（ループ）実行の実績がある場合
+            contents.append({"role": "user", "parts": [{"text": user_utterance}]})
+            contents.extend(current_turn_history)
+        elif not tool_results:
             # ツール実行なし
             # 最後にユーザー発言を追加
             contents.append({"role": "user", "parts": [{"text": user_utterance}]})
@@ -337,7 +346,10 @@ class GeminiAdapter(ILanguageModel):
             # ここでは 'function' role を試行
             contents.append({"role": "function", "parts": parts})
 
-        logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, tool_results_count={len(tool_results)}")
+        if current_turn_history:
+             logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, current_turn_history_len={len(current_turn_history)}")
+        else:
+             logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, tool_results_count={len(tool_results)}")
         logger.info("Step 3: Generating final response...")
         response = await self._run_gemini_async(contents, config)
 
