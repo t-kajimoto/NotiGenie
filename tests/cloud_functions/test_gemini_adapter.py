@@ -142,3 +142,36 @@ def test_prompt_paths_resolve(adapter):
     assert os.path.exists(adapter.system_instruction_path)
     assert os.path.exists(adapter.response_instruction_path)
 
+@pytest.mark.asyncio
+async def test_generate_tool_calls_uses_deterministic_config(adapter):
+    """ツール生成時に temperature=0.0 と Proximal Reminder が使われることを確認 (Round 5)"""
+    adapter.client.models.generate_content = MagicMock()
+    
+    # Mock response to avoid parse errors
+    mock_response = MagicMock()
+    mock_response.text = "[]"
+    adapter.client.models.generate_content.return_value = mock_response
+
+    user_utterance = "ハネムーンの情報を保存して"
+    # Use a minimal but valid schema
+    single_db_schema = {
+        "id": "master_db", 
+        "title": "Task List",
+        "description": "test", 
+        "properties": {}
+    }
+    
+    await adapter.generate_tool_calls(user_utterance, "2026-02-12", [], single_db_schema)
+    
+    call_args = adapter.client.models.generate_content.call_args
+    config = call_args.kwargs["config"]
+    contents = call_args.kwargs["contents"]
+    
+    # 1. Temperature が 0.0 であること
+    assert config.temperature == 0.0
+    
+    # 2. User Utterance に Proximal Reminder が含まれていること
+    user_text = contents[0].parts[0].text
+    assert user_utterance in user_text
+    assert "必ず search_database を実行してください" in user_text
+

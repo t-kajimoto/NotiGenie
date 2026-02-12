@@ -166,7 +166,7 @@ class GeminiAdapter(ILanguageModel):
             logger.warning(f"Response instruction file not found at {self.response_instruction_path}")
             return ""
 
-    def _get_model_config(self, system_instruction: str, tool_mode: str = "AUTO") -> types.GenerateContentConfig:
+    def _get_model_config(self, system_instruction: str, tool_mode: str = "AUTO", temperature: float = 0.7) -> types.GenerateContentConfig:
         """Gemini API 呼び出し用の共通コンフィグを作成します。"""
         # tool_mode に応じた設定 (SDK v0.2 準拠)
         tool_config = None
@@ -179,7 +179,7 @@ class GeminiAdapter(ILanguageModel):
 
         return types.GenerateContentConfig(
             system_instruction=system_instruction,
-            temperature=0.7,
+            temperature=temperature,
             tool_config=tool_config
         )
 
@@ -371,6 +371,10 @@ class GeminiAdapter(ILanguageModel):
             tools=all_tools
         )
 
+        # [Round 5] 指示への近接性を高めるため、ユーザー発言の直前にリマインドを挿入
+        proximal_reminder = "\n\n(注: あなたは Notion の ID をまだ知りません。作成・更新の前に必ず search_database を実行してください)"
+        tool_gen_user_utterance = user_utterance + proximal_reminder
+
         # 履歴の変換は必要だが、ここでは user_utterance をメインに使用
         # 履歴がある場合は messages に変換して追加する必要がある
         contents = []
@@ -378,13 +382,21 @@ class GeminiAdapter(ILanguageModel):
              # Convert history dicts to types.Content if necessary, or just dicts
              # SDK accepts list of dicts: [{'role': 'user', 'parts': [...]}, ...]
              contents.extend(history)
-        contents.append({"role": "user", "parts": [{"text": user_utterance}]})
+        contents.append({"role": "user", "parts": [{"text": tool_gen_user_utterance}]})
 
         if current_turn_history:
             contents.extend(current_turn_history)
 
-        logger.info(f"[TOOL_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, system_instruction={log_oneline(system_instruction, max_length=300)}")
+        logger.info(f"[TOOL_GEN_INPUT] user_utterance={log_oneline(tool_gen_user_utterance)}, system_instruction={log_oneline(system_instruction, max_length=300)}")
         logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}'...")
+
+        # [Round 5] 手順遵守を徹底するため、ツール生成フェーズでは temperature を 0.0 に設定
+        config = self._get_model_config(
+            system_instruction=system_instruction,
+            tool_mode="AUTO",
+            temperature=0.0
+        )
+        
         response = await self._run_gemini_async(contents, config)
 
         tool_calls = []
