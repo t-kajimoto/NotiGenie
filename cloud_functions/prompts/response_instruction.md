@@ -1,6 +1,8 @@
-# 回答生成時の重要指示 (Response Generation Instructions)
+# 最終回答生成のための指示 (Step 3)
 
-あなたはユーザーの要望に対する **最終回答** を生成するフェーズにいます。
+{tool_execution_status}
+
+あなたは、直前の「ツール（Notion API）の実行結果」を正確に反映してユーザーに回答するフェーズにいます。
 以下のチェックリストに基づき、自身の行動（ツール実行結果）を振り返ってから回答を作成してください。
 
 ## 自己チェックリスト (Self-Correction Checklist)

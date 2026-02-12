@@ -166,6 +166,23 @@ class GeminiAdapter(ILanguageModel):
             logger.warning(f"Response instruction file not found at {self.response_instruction_path}")
             return ""
 
+    def _get_model_config(self, system_instruction: str, tool_mode: str = "AUTO") -> types.GenerateContentConfig:
+        """Gemini API 呼び出し用の共通コンフィグを作成します。"""
+        # tool_mode に応じた設定 (SDK v0.2 準拠)
+        tool_config = None
+        if tool_mode in ["NONE", "AUTO", "ANY"]:
+            tool_config = types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode=tool_mode
+                )
+            )
+
+        return types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=0.7,
+            tool_config=tool_config
+        )
+
     def _convert_to_gemini_contents(self, user_utterance: str, history: List[Dict[str, Any]], tool_results: List[Dict[str, Any]], current_turn_history: List[Dict[str, Any]] = None) -> List[types.Content]:
         """User input, history, and tool results converted to Gemini API content list."""
         contents = []
@@ -391,25 +408,28 @@ class GeminiAdapter(ILanguageModel):
         if not instruction:
              instruction = self._get_system_instruction()
 
-        # Config for response generation
-        config = types.GenerateContentConfig(
-            system_instruction=instruction,
-            temperature=0.7
-        )
-
         # 履歴と現在のターンを結合してコンテンツを作成
         contents = self._convert_to_gemini_contents(user_utterance, history, tool_results, current_turn_history)
 
-        # 幻覚防止のための最終念押し (Reflection Prompt)
-        # 会話の最後に、明示的に「結果を確認しなさい」という命令を追加する
+        # 幻覚防止のための最終念押し (Reflection Instruction)
+        # 会話の最後に、状況に応じた指示をシステム指示として注入する
         if tool_results:
-             reflection_text = f"ツール実行結果は {len(tool_results)} 件です。結果に基づき、正確に回答を生成してください。"
+             status_text = f"**重要: ツール実行結果は {len(tool_results)} 件です。結果に基づき、正確に回答を生成してください。**"
         else:
-             reflection_text = "ツールは1つも実行されませんでした。保存や作成が依頼されている場合、嘘をつかずに正直に『実行できませんでした』と回答してください。"
+             status_text = "**重要: ツールは1つも実行されませんでした。保存や作成が依頼されている場合、嘘をつかずに正直に『実行できませんでした』と回答してください。**"
 
-        contents.append(types.Content(role="user", parts=[types.Part(text=reflection_text)]))
+        # 回答生成用の指示に状況を埋め込む (Safe replace avoiding format errors)
+        final_system_instruction = instruction.replace(
+            "{tool_execution_status}", status_text
+        )
 
         try:
+            # Step 3用のプロンプトを読み込む (既に構築された final_system_instruction を使用)
+            config = self._get_model_config(
+                system_instruction=final_system_instruction,
+                tool_mode="NONE"
+            )
+
             # Use the existing async wrapper to call the API
             response = await self._run_gemini_async(contents, config)
             
