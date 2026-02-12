@@ -166,7 +166,7 @@ class GeminiAdapter(ILanguageModel):
             logger.warning(f"Response instruction file not found at {self.response_instruction_path}")
             return ""
 
-    def _get_model_config(self, system_instruction: str, tool_mode: str = "AUTO", temperature: float = 0.7) -> types.GenerateContentConfig:
+    def _get_model_config(self, system_instruction: str, tool_mode: str = "AUTO", temperature: float = 0.7, tools: Optional[List[types.Tool]] = None) -> types.GenerateContentConfig:
         """Gemini API 呼び出し用の共通コンフィグを作成します。"""
         # tool_mode に応じた設定 (SDK v0.2 準拠)
         tool_config = None
@@ -180,7 +180,8 @@ class GeminiAdapter(ILanguageModel):
         return types.GenerateContentConfig(
             system_instruction=system_instruction,
             temperature=temperature,
-            tool_config=tool_config
+            tool_config=tool_config,
+            tools=tools
         )
 
     def _convert_to_gemini_contents(self, user_utterance: str, history: List[Dict[str, Any]], tool_results: List[Dict[str, Any]], current_turn_history: List[Dict[str, Any]] = None) -> List[types.Content]:
@@ -259,8 +260,10 @@ class GeminiAdapter(ILanguageModel):
         # Google Search Tool (Grounding)
         grounding_tool = types.Tool(google_search=types.GoogleSearch())
 
-        config = types.GenerateContentConfig(
+        config = self._get_model_config(
             system_instruction=system_instruction,
+            tool_mode="AUTO",
+            temperature=0.7,
             tools=[grounding_tool]
         )
 
@@ -366,11 +369,6 @@ class GeminiAdapter(ILanguageModel):
         # Notion操作ツールのみを定義し、調査結果はプロンプト（テキスト）経由で渡します。
         all_tools = [notion_tools]
 
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            tools=all_tools
-        )
-
         # [Round 5] 指示への近接性を高めるため、ユーザー発言の直前にリマインドを挿入
         proximal_reminder = "\n\n(注: あなたは Notion の ID をまだ知りません。作成・更新の前に必ず search_database を実行してください)"
         tool_gen_user_utterance = user_utterance + proximal_reminder
@@ -391,10 +389,12 @@ class GeminiAdapter(ILanguageModel):
         logger.info(f"Step 2: Generating tool calls for DB '{single_db_schema.get('id')}'...")
 
         # [Round 5] 手順遵守を徹底するため、ツール生成フェーズでは temperature を 0.0 に設定
+        # [Round 6] tools を忘れずに渡すように修正 (400 INVALID_ARGUMENT 対策)
         config = self._get_model_config(
             system_instruction=system_instruction,
             tool_mode="AUTO",
-            temperature=0.0
+            temperature=0.0,
+            tools=all_tools
         )
         
         response = await self._run_gemini_async(contents, config)

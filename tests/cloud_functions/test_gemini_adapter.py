@@ -175,3 +175,24 @@ async def test_generate_tool_calls_uses_deterministic_config(adapter):
     assert user_utterance in user_text
     assert "必ず search_database を実行してください" in user_text
 
+    # 3. tools が渡されていること (Round 6)
+    assert call_args.kwargs["config"].tools is not None
+    assert len(call_args.kwargs["config"].tools) > 0
+
+@pytest.mark.asyncio
+async def test_perform_research_uses_shared_config(adapter):
+    """リサーチ時に適切なツール構成が使われることを確認 (Round 6)"""
+    adapter.client.models.generate_content = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = "調査結果"
+    adapter.client.models.generate_content.return_value = mock_response
+
+    await adapter.perform_research("カフェを調べて", "2026-02-12")
+    
+    call_args = adapter.client.models.generate_content.call_args
+    config = call_args.kwargs["config"]
+    
+    # tools に Goole Search が含まれていること
+    assert config.tools is not None
+    assert any(hasattr(t, 'google_search') or 'google_search' in str(t) for t in config.tools)
+
