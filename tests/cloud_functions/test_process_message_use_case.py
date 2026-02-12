@@ -462,3 +462,59 @@ async def test_execute_with_history(
     call_args = mock_language_model.generate_tool_calls.call_args
     assert call_args.args[4] == history_data
 
+@pytest.mark.asyncio
+async def test_execute_append_memo(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """メモの追記フロー(Search -> Update)のテスト"""
+    # --- Arrange ---
+    user_utterance = "ハネムーンのメモに「パスポート確認」を追加して"
+    current_date = "2024-01-01"
+
+    # Search result (Existing page with memo)
+    search_result = [{
+        "id": "page-id",
+        "title": "ハネムーン",
+        "properties": {
+            "カテゴリ": "ToDo",
+            "メモ": "既存のメモ" # Existing content
+        }
+    }]
+    mock_notion_repository.search_database.return_value = search_result
+    
+    # ツールコール生成
+    # 1. Search
+    # 2. Update (Existing + New)
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
+            "name": "search_database",
+            "args": {"query": "ハネムーン"}
+        }],
+        [{
+            "name": "update_page",
+            "args": {
+                "page_id": "page-id",
+                "properties": {
+                    "メモ": "既存のメモ\nパスポート確認" # Appended
+                }
+            }
+        }],
+        []
+    ]
+    
+    mock_notion_repository.update_page.return_value = {"status": "success", "id": "page-id"}
+    mock_language_model.generate_response.return_value = "メモを更新しました。"
+
+    # --- Act ---
+    await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    mock_notion_repository.search_database.assert_called_once()
+    mock_notion_repository.update_page.assert_called_once()
+    
+    call_kwargs = mock_notion_repository.update_page.call_args.kwargs
+    assert call_kwargs["page_id"] == "page-id"
+    # 追記された内容になっているか確認
+    assert "パスポート確認" in call_kwargs["properties"]["メモ"]
+    assert "既存のメモ" in call_kwargs["properties"]["メモ"]
+
