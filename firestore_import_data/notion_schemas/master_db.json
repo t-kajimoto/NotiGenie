@@ -9,8 +9,8 @@
     },
     "カテゴリ": {
       "type": "select",
-      "options": ["Shopping", "ToDo", "Menu", "Other"],
-      "description": "データの種類 (Shopping/ToDo/Menu/Other)"
+      "options": ["Shopping", "TODO", "Menu", "Other"],
+      "description": "データの種類 (Shopping/TODO/Menu/Other)"
     },
     "メモ": {
       "type": "rich_text",
