@@ -25,13 +25,14 @@ class GeminiAdapter(ILanguageModel):
     2ステップの思考プロセス（ツール生成→応答生成）を実装します。
     統合データベース (master_db) を使用します。
     """
-    def __init__(self, system_instruction_template: str, notion_database_mapping: dict):
+    def __init__(self, system_instruction_template: str, notion_database_mapping: dict, response_instruction: str = ""):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
         
         self.client = genai.Client(api_key=api_key)
         self.system_instruction_template = system_instruction_template
+        self.response_instruction = response_instruction
         self.notion_database_mapping = notion_database_mapping
         self.model_name = 'gemini-2.5-flash-lite' # Testing 2.5-flash-lite with function-only tools
 
@@ -57,24 +58,18 @@ class GeminiAdapter(ILanguageModel):
         instruction = self.system_instruction_template.replace("{database_descriptions}", database_descriptions)
         instruction = instruction.replace("{current_date}", current_date)
         
-        # 調査結果がある場合はプロンプトに追加
+        # 調査結果がある場合はプレースホルダーに代入、なければ空文字に
         if research_results:
-            instruction += f"\n### Research Results (Google Search results):\n{research_results}\n"
+            research_section = f"\n### 調査結果 (Google Search)\n{research_results}\n"
+        else:
+            research_section = ""
+        instruction = instruction.replace("{research_results}", research_section)
 
-        # 統合DB用のカラム指示を追加
-        instruction += """
-Note for Unified Database:
-1. "予定日" (Date): Set a concrete date for sorting (e.g., "来週" -> next Monday's date).
-2. "予定日表示" (RichText): Keep the user's original vague expression (e.g., "来週", "なる早").
-3. "メモ" (RichText): Include research results (address, hours, etc.) from 'Research Results' above.
-4. "完了日" (Date): Only set this when marking a task as Done. Use today's date. Empty = not done.
-5. "カテゴリ" (Select): Choose from Shopping, ToDo, Menu, Other based on user intent.
-"""
         return instruction
 
     def _build_response_generation_instruction(self) -> str:
         """【ステップ3: 応答生成】用のシステムプロンプトを構築します。"""
-        return "あなたは親切なアシスタントです。ユーザーの質問とツールの実行結果を元に、装飾のない自然な日本語で回答してください。Markdown（太字の**や箇条書きの*など）は絶対に使用しないでください。"
+        return self.response_instruction
 
     # ---------------------------------------------------------------------------
     # 内部ヘルパーメソッド

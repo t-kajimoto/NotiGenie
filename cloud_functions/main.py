@@ -69,6 +69,20 @@ def load_help_message() -> str:
         logger.warning(f"{help_path} not found.")
         return "ヘルプファイルが見つかりません。管理者に連絡してください。"
 
+def load_response_instruction() -> str:
+    """
+    応答生成用のシステム指示書（プロンプト）をファイルから読み込みます。
+    """
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(base_path, "prompts/final_response_generator.md")
+
+    if os.path.exists(prompt_path):
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    else:
+        logger.warning(f"{prompt_path} not found.")
+        return "あなたは親切なアシスタントです。ユーザーの質問とツールの実行結果を元に、自然な日本語で回答してください。"
+
 
 # ---------------------------------------------------------------------------
 # 依存性の注入 (Dependency Injection) と初期化
@@ -84,13 +98,15 @@ try:
     firestore_adapter = FirestoreAdapter()
     schemas_data = firestore_adapter.load_notion_schemas()
     system_instruction = load_prompts()
+    response_instruction = load_response_instruction()
     help_message = load_help_message()
 
     # 2. ゲートウェイ（外部サービスへのアダプター）の初期化
     #    - 取得したスキーマ情報を、GeminiとNotionのアダプターに渡します。
     gemini_adapter = GeminiAdapter(
         system_instruction_template=system_instruction,
-        notion_database_mapping=schemas_data
+        notion_database_mapping=schemas_data,
+        response_instruction=response_instruction
     )
     notion_adapter = NotionAdapter(notion_database_mapping=schemas_data)
 
