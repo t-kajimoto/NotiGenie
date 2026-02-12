@@ -166,6 +166,48 @@ class GeminiAdapter(ILanguageModel):
             logger.warning(f"Response instruction file not found at {self.response_instruction_path}")
             return ""
 
+    def _convert_to_gemini_contents(self, user_utterance: str, history: List[Dict[str, Any]], tool_results: List[Dict[str, Any]]) -> List[types.Content]:
+        """User input, history, and tool results converted to Gemini API content list."""
+        contents = []
+        
+        # 1. Add History
+        if history:
+            # Assume history is already in a format compatible or convert it
+            # simplistic conversion if history is raw dicts
+            converted_history = self._convert_contents(history)
+            contents.extend(converted_history)
+            
+        # 2. Handle Current Turn
+        if tool_results:
+             # Tool Execution Phase specific handling
+             # We need to append the TOOL response.
+             # In Google GenAI SDK, tool response is a Part with function_response.
+             # The role should be 'tool' or 'user' (SDK specific). 
+             # Let's try 'tool' role which is standard for function calling.
+             
+             parts = []
+             for result in tool_results:
+                  parts.append(
+                      types.Part(
+                          function_response=types.FunctionResponse(
+                              name=result["name"],
+                              response={"content": result["result"]} 
+                          )
+                      )
+                  )
+             contents.append(types.Content(role="tool", parts=parts))
+
+             # After tool outputs, we often add a user prompt to "interpret the results"
+             # But generating response will handle the "next step" based on these tool outputs.
+             # If we want to explicit user instruction, we add it. 
+             # But here we rely on system instruction to "Review tool results".
+             
+        else:
+             # Regular turn
+             contents.append(types.Content(role="user", parts=[types.Part(text=user_utterance)]))
+             
+        return contents
+
     async def perform_research(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> str:
         """【ステップ1.5: 調査】Google検索ツールを使用して外部情報を調査します。"""
         system_instruction = f"""ユーザーの質問に答えるため、またはNotionに登録する情報を補完するために必要な情報をGoogle検索で調査してください。
