@@ -41,6 +41,11 @@ def setup():
         print("ERROR: API keys not found in .env.test")
         sys.exit(1)
         
+    # Force set GOOGLE_APPLICATION_CREDENTIALS to absolute path
+    cred_path = (Path(__file__).parent / "google-credential.json").resolve()
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(cred_path)
+    print(f"Using Google Credentials: {cred_path}")
+        
     print("Initializing adapters...")
     
     # Prompts
@@ -58,7 +63,10 @@ def setup():
     
     return use_case
 
-def main():
+import asyncio
+from datetime import datetime
+
+async def main():
     use_case = setup()
     session_id = f"manual-{uuid.uuid4().hex[:6]}"
     
@@ -71,6 +79,7 @@ def main():
     
     while True:
         try:
+            # Note: input() is blocking, which is fine for this simple script
             user_input = input("\nYou > ")
             if user_input.lower() in ["exit", "quit"]:
                 break
@@ -78,8 +87,11 @@ def main():
                 continue
                 
             print("Bot > Thinking...")
-            response = use_case.execute(user_input, session_id)
-            print(f"Bot > {response.text}")
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            
+            # Execute is async and returns a string
+            response = await use_case.execute(user_input, current_date, session_id)
+            print(f"Bot > {response}")
             
         except KeyboardInterrupt:
             break
@@ -91,4 +103,6 @@ def main():
     print("\nGoodbye!")
 
 if __name__ == "__main__":
-    main()
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.run(main())
