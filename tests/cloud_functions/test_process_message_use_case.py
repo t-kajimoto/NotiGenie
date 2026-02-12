@@ -86,9 +86,10 @@ async def test_execute_unified_db_success_flow(
 
     # DB選択は廃止。常に master_db が使われる。
 
-    # Step 2: ツールコール生成のモック
-    mock_language_model.generate_tool_calls.return_value = [
-        {"name": "search_database", "args": {"query": "今日のタスク", "database_name": "master_db"}}
+    # Step 2: ツールコール生成のモック (Multi-turn: 1回目=ツール, 2回目=終了)
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{"name": "search_database", "args": {"query": "今日のタスク", "database_name": "master_db"}}],
+        []
     ]
 
     # Step 3: 応答生成のモック
@@ -99,7 +100,8 @@ async def test_execute_unified_db_success_flow(
 
     # --- Assert ---
     # 1. ツールコール生成が呼ばれたか (master_dbのスキーマが渡される)
-    mock_language_model.generate_tool_calls.assert_awaited_once()
+    # ループ処理のため複数回呼ばれる可能性があるが、少なくとも1回は呼ばれる
+    assert mock_language_model.generate_tool_calls.call_count >= 1
     # 2. Notionツールが呼ばれたか
     mock_notion_repository.search_database.assert_called_once_with(
         query="今日のタスク", database_name="master_db"
@@ -126,15 +128,17 @@ async def test_execute_shopping_creation(
         "予定日": "2024-01-01",
         "予定日表示": "今日"
     }
-    mock_language_model.generate_tool_calls.return_value = [
-        {
+    # Multi-turn mock
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
             "name": "create_page",
             "args": {
                 "database_name": "master_db",
                 "title": "牛乳",
                 "properties": expected_properties
             }
-        }
+        }],
+        []
     ]
 
     mock_language_model.generate_response.return_value = "牛乳を買い物リストに追加しました。"
@@ -144,7 +148,7 @@ async def test_execute_shopping_creation(
 
     # --- Assert ---
     # ツールコール生成が呼ばれたか
-    mock_language_model.generate_tool_calls.assert_awaited_once()
+    assert mock_language_model.generate_tool_calls.call_count >= 1
 
     # Notionのcreate_pageが期待通りの引数で呼ばれたか
     mock_notion_repository.create_page.assert_called_once_with(
@@ -172,15 +176,16 @@ async def test_execute_meal_creation_with_category(
         "予定日": "2023-12-31",
         "メモ": "夜ごはん、家で食べた"
     }
-    mock_language_model.generate_tool_calls.return_value = [
-        {
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
             "name": "create_page",
             "args": {
                 "database_name": "master_db",
                 "title": "カレー",
                 "properties": expected_properties
             }
-        }
+        }],
+        []
     ]
 
     # 応答生成
@@ -190,7 +195,7 @@ async def test_execute_meal_creation_with_category(
     final_response = await use_case.execute(user_utterance, current_date, "test_session")
 
     # --- Assert ---
-    mock_language_model.generate_tool_calls.assert_awaited_once()
+    assert mock_language_model.generate_tool_calls.call_count >= 1
 
     mock_notion_repository.create_page.assert_called_once_with(
         database_name="master_db",
@@ -213,8 +218,8 @@ async def test_execute_with_research(
     mock_language_model.perform_research.return_value = "渋谷おすすめラーメン: 一蘭渋谷店 (住所: ...)"
 
     # ツールコール生成
-    mock_language_model.generate_tool_calls.return_value = [
-        {
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
             "name": "create_page",
             "args": {
                 "database_name": "master_db",
@@ -224,7 +229,8 @@ async def test_execute_with_research(
                     "メモ": "渋谷おすすめラーメン: 一蘭渋谷店 (住所: ...)"
                 }
             }
-        }
+        }],
+        []
     ]
 
     mock_language_model.generate_response.return_value = "ラーメン屋を登録しました。"
@@ -249,15 +255,16 @@ async def test_execute_with_notion_error(
     current_date = "2024-01-01"
 
     # ツールコール生成
-    mock_language_model.generate_tool_calls.return_value = [
-        {
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
             "name": "create_page",
             "args": {
                 "database_name": "master_db",
                 "title": "牛乳",
                 "properties": {"カテゴリ": "Shopping"}
             }
-        }
+        }],
+        []
     ]
 
     # Notionのcreate_pageがエラーを返す
@@ -286,4 +293,64 @@ async def test_execute_with_notion_error(
 
     # 4. セッションが保存されたか（エラー時でも会話は保存）
     mock_session_repository.add_interaction.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_execute_multi_turn_search_then_create(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """マルチターン: 検索(0件) → 判断 → 作成 のフローをテスト"""
+    # --- Arrange ---
+    user_utterance = "池上梅園に行きたい"
+    current_date = "2024-01-01"
+
+    # Mock sequence:
+    # 1. First turn: Search
+    # 2. Second turn: Create (based on empty search result)
+    # 3. Third turn: Finish (empty list)
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{"name": "search_database", "args": {"query": "池上梅園"}}],
+        [{"name": "create_page", "args": {"database_name": "master_db", "title": "池上梅園", "properties": {"カテゴリ": "ToDo"}}}],
+        []
+    ]
+    
+    # Mock Notion results
+    # 1. Search returns empty
+    mock_notion_repository.search_database.return_value = {"results": []}
+    # 2. Create returns success
+    mock_notion_repository.create_page.return_value = {"id": "new-page-id", "url": "http://notion..."}
+
+    mock_language_model.generate_response.return_value = "池上梅園をToDoに追加しました。"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    # 3回呼ばれる (Call 1: Search, Call 2: Create, Call 3: Finish)
+    assert mock_language_model.generate_tool_calls.call_count == 3
+    
+    # Check intermediate history usage
+    # 2nd call should include result of search
+    call_args_list = mock_language_model.generate_tool_calls.call_args_list
+    
+    # 2回目の呼び出しの kwargs['current_turn_history'] に 1回目の結果(Search)が含まれているか
+    second_call_kwargs = call_args_list[1].kwargs
+    history_arg = second_call_kwargs['current_turn_history']
+    assert len(history_arg) >= 2 # Model call + Function response
+    
+    # Model part
+    # Note: dict structure depends on implementation in process_message.py
+    # We implemented: {"role": "model", "parts": [{"function_call": ...}]}
+    assert history_arg[0]['role'] == 'model'
+    assert history_arg[0]['parts'][0]['function_call']['name'] == 'search_database'
+    
+    # Function part
+    # {"role": "function", "parts": [{"function_response": ...}]}
+    assert history_arg[1]['role'] == 'function'
+    assert history_arg[1]['parts'][0]['function_response']['name'] == 'search_database'
+
+    # Notion calls
+    mock_notion_repository.search_database.assert_called_once()
+    mock_notion_repository.create_page.assert_called_once()
+    
+    assert final_response == "池上梅園をToDoに追加しました。"
 

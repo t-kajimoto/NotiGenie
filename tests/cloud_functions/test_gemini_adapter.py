@@ -61,40 +61,7 @@ class TestGeminiAdapter:
                 notion_database_mapping={}
             )
 
-    @pytest.mark.asyncio
-    async def test_select_databases_returns_list(self, gemini_adapter):
-        """select_databasesがリストを返す"""
-        # モックレスポンスの設定
-        mock_response = MagicMock()
-        # candidates[0].content.parts[0].function_call
-        mock_part = MagicMock()
-        mock_fn = MagicMock()
-        mock_fn.name = "select_databases"
-        mock_fn.args = {"db_names": ["test_db"]}
-        mock_part.function_call = mock_fn
-        
-        mock_content = MagicMock()
-        mock_content.parts = [mock_part]
-        
-        mock_candidate = MagicMock()
-        mock_candidate.content = mock_content
-        
-        mock_response.candidates = [mock_candidate]
-        
-        gemini_adapter.client.models.generate_content.return_value = mock_response
 
-        # 実行
-        result = await gemini_adapter.select_databases("テストクエリ", "2024-01-15")
-
-        # アサーション
-        assert isinstance(result, list)
-        assert "test_db" in result
-        
-        # generate_contentの呼び出し確認
-        gemini_adapter.client.models.generate_content.assert_called_once()
-        args, kwargs = gemini_adapter.client.models.generate_content.call_args
-        assert kwargs['model'] == gemini_adapter.model_name
-        assert "select_databases" in str(kwargs['config'].tools[0]) # 簡易チェック
 
 
 
