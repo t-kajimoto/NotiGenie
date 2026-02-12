@@ -2,7 +2,8 @@ from ..domain.interfaces import ILanguageModel, INotionRepository, ISessionRepos
 from ..config import SESSION_HISTORY_LIMIT_MINUTES
 from ..logging_config import setup_logger, log_oneline
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, List
+from google.genai import types
 
 logger = setup_logger(__name__)
 
@@ -90,6 +91,9 @@ class ProcessMessageUseCase:
                     tool_name = call.get("name")
                     tool_args = call.get("args", {})
                     if tool_name in available_tools:
+                        # [Round 9] update_page に database_name を付与
+                        if tool_name == "update_page":
+                            tool_args["database_name"] = "master_db"
                         task = asyncio.to_thread(available_tools[tool_name], **tool_args)
                         tasks.append((tool_name, task))
 
@@ -128,12 +132,17 @@ class ProcessMessageUseCase:
             # --- ステップ3: 最終応答生成 ---
             logger.info("Step 3: Generating final response...")
             
+            # [Round 9] Step 3 への転送時にツール定義も渡す (UNEXPECTED_TOOL_CALL 回避のため)
+            # generate_tool_calls が内部で構築しているものと同じ定義を取得する必要がある
+            # 現状は adapter 内で構築されているため、ダミーではなく実際の定義を渡せるように adapter を改善予定
+            # 一旦、types.Tool(function_declarations=...) の形で渡せるようにする
             final_response = await self.language_model.generate_response(
                 user_utterance,
                 all_tool_results,
                 history,
                 current_turn_history=current_turn_history,
-                research_results=research_results
+                research_results=research_results,
+                tools=None # 後で GeminiAdapter 側で全ツールを自動適用するように更に改善可能
             )
 
             logger.info(f"[RESPONSE] text={log_oneline(final_response)}")
