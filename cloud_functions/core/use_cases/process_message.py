@@ -33,6 +33,11 @@ class ProcessMessageUseCase:
 
             # セッション履歴を取得
             history = self.session_repository.get_recent_history(session_id, limit_minutes=SESSION_HISTORY_LIMIT_MINUTES)
+            
+            # [ Round 4 ] ノイズ削減のため、履歴を直近10件に制限
+            if len(history) > 10:
+                history = history[-10:]
+                
             logger.info(f"[HISTORY] count={len(history)}")
 
             # --- ステップ1: 調査 (Research) ---
@@ -127,7 +132,8 @@ class ProcessMessageUseCase:
                 user_utterance,
                 all_tool_results,
                 history,
-                current_turn_history=current_turn_history
+                current_turn_history=current_turn_history,
+                research_results=research_results
             )
 
             logger.info(f"[RESPONSE] text={log_oneline(final_response)}")

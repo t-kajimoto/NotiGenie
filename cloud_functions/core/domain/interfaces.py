@@ -58,7 +58,9 @@ class ILanguageModel(ABC):
         self,
         user_utterance: str,
         tool_results: List[Dict[str, Any]],
-        history: List[Dict[str, Any]] = None
+        history: List[Dict[str, Any]] = None,
+        current_turn_history: List[Dict[str, Any]] = None,
+        research_results: str = ""
     ) -> str:
         """
         ツール実行結果をコンテキストとして、ユーザーへの最終的な応答を生成します。

@@ -74,7 +74,7 @@ def load_response_instruction() -> str:
     応答生成用のシステム指示書（プロンプト）をファイルから読み込みます。
     """
     base_path = os.path.dirname(os.path.abspath(__file__))
-    prompt_path = os.path.join(base_path, "prompts/final_response_generator.md")
+    prompt_path = os.path.join(base_path, "prompts/response_instruction.md")
 
     if os.path.exists(prompt_path):
         with open(prompt_path, 'r', encoding='utf-8') as f:

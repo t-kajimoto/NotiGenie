@@ -400,17 +400,21 @@ class GeminiAdapter(ILanguageModel):
         return tool_calls
 
     async def generate_response(
-        self, user_utterance: str, tool_results: List[Dict[str, Any]], history: List[Dict[str, Any]] = None,
-        current_turn_history: List[Dict[str, Any]] = None
+        self, user_utterance: str, tool_results: List[Dict[str, Any]], 
+        history: List[Dict[str, Any]] = None,
+        current_turn_history: List[Dict[str, Any]] = None,
+        research_results: str = ""
     ) -> str:
-        # 最終回答生成用のプロンプトを取得
-        instruction = self._get_response_instruction()
-        if not instruction:
-             instruction = self._get_system_instruction()
-
-        # 履歴と現在のターンを結合してコンテンツを作成
+        # Step 3用のコンテンツを構築
         contents = self._convert_to_gemini_contents(user_utterance, history, tool_results, current_turn_history)
 
+        # 最終回答生成用のプロンプトを取得
+        # main.py 等での初期化時に response_instruction が渡されている想定だが、
+        # 念のためファイルからも読み込めるようにしておく
+        instruction = self.response_instruction
+        if not instruction:
+            instruction = self._get_response_instruction()
+        
         # 幻覚防止のための最終念押し (Reflection Instruction)
         # 会話の最後に、状況に応じた指示をシステム指示として注入する
         if tool_results:
@@ -418,28 +422,35 @@ class GeminiAdapter(ILanguageModel):
         else:
              status_text = "**重要: ツールは1つも実行されませんでした。保存や作成が依頼されている場合、嘘をつかずに正直に『実行できませんでした』と回答してください。**"
 
+        # 調査結果がある場合は、それもコンテキストとして注入する (Context Bridge)
+        research_text = ""
+        if research_results:
+            research_text = f"### 今回リサーチで見つかった情報 (Google Search)\n{research_results}\n"
+
         # 回答生成用の指示に状況を埋め込む (Safe replace avoiding format errors)
         final_system_instruction = instruction.replace(
             "{tool_execution_status}", status_text
         )
+        final_system_instruction = final_system_instruction.replace(
+            "{research_results}", research_text
+        )
 
         try:
-            # Step 3用のプロンプトを読み込む (既に構築された final_system_instruction を使用)
+            # Step 3用のプロンプトを読み込む
             config = self._get_model_config(
                 system_instruction=final_system_instruction,
                 tool_mode="NONE"
             )
 
-            # Use the existing async wrapper to call the API
+            # SDKのAPIを非同期呼び出し
             response = await self._run_gemini_async(contents, config)
-            
+
             if response.text:
-                logger.info(f"Final response text: {response.text}")
+                logger.info(f"Final response text: {log_oneline(response.text)}")
                 return response.text
             else:
-                logger.warning("Empty response text")
-                return "申し訳ありません、うまく回答を生成できませんでした。"
-                
+                return "申し訳ありません、応答を生成できませんでした。"
+
         except Exception as e:
             logger.error(f"Error in generate_response: {e}")
-            return "申し訳ありません、エラーが発生しました。"
+            return f"エラーが発生しました: {str(e)}"
