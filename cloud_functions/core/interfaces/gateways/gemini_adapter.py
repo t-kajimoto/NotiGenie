@@ -423,7 +423,8 @@ class GeminiAdapter(ILanguageModel):
         self, user_utterance: str, tool_results: List[Dict[str, Any]], 
         history: List[Dict[str, Any]] = None,
         current_turn_history: List[Dict[str, Any]] = None,
-        research_results: str = ""
+        research_results: str = "",
+        tools: Optional[List[types.Tool]] = None
     ) -> str:
         # Step 3用のコンテンツを構築
         contents = self._convert_to_gemini_contents(user_utterance, history, tool_results, current_turn_history)
@@ -457,9 +458,12 @@ class GeminiAdapter(ILanguageModel):
 
         try:
             # Step 3用のプロンプトを読み込む
+            # [Round 9] 履歴にツールコールが含まれる場合、APIはツール定義(tools)を要求する。
+            # ただし、回答生成(Step 3)で新たにツールを呼ばせないために tool_mode="NONE" を指定する。
             config = self._get_model_config(
                 system_instruction=final_system_instruction,
-                tool_mode="NONE"
+                tool_mode="NONE",
+                tools=tools
             )
 
             # SDKのAPIを非同期呼び出し
