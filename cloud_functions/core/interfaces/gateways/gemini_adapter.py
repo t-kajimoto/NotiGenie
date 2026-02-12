@@ -166,46 +166,69 @@ class GeminiAdapter(ILanguageModel):
             logger.warning(f"Response instruction file not found at {self.response_instruction_path}")
             return ""
 
-    def _convert_to_gemini_contents(self, user_utterance: str, history: List[Dict[str, Any]], tool_results: List[Dict[str, Any]]) -> List[types.Content]:
+    def _convert_to_gemini_contents(self, user_utterance: str, history: List[Dict[str, Any]], tool_results: List[Dict[str, Any]], current_turn_history: List[Dict[str, Any]] = None) -> List[types.Content]:
         """User input, history, and tool results converted to Gemini API content list."""
         contents = []
         
         # 1. Add History
         if history:
-            # Assume history is already in a format compatible or convert it
-            # simplistic conversion if history is raw dicts
             converted_history = self._convert_contents(history)
             contents.extend(converted_history)
             
-        # 2. Handle Current Turn
-        if tool_results:
-             # Tool Execution Phase specific handling
-             # We need to append the TOOL response.
-             # In Google GenAI SDK, tool response is a Part with function_response.
-             # The role should be 'tool' or 'user' (SDK specific). 
-             # Let's try 'tool' role which is standard for function calling.
-             
-             parts = []
-             for result in tool_results:
-                  parts.append(
-                      types.Part(
-                          function_response=types.FunctionResponse(
-                              name=result["name"],
-                              response={"content": result["result"]} 
-                          )
-                      )
-                  )
-             contents.append(types.Content(role="tool", parts=parts))
-
-             # After tool outputs, we often add a user prompt to "interpret the results"
-             # But generating response will handle the "next step" based on these tool outputs.
-             # If we want to explicit user instruction, we add it. 
-             # But here we rely on system instruction to "Review tool results".
-             
-        else:
-             # Regular turn
+        # 2. Add User Utterance (if not already in history or current_turn_history)
+        # In a multi-turn loop, user_utterance is the initial trigger. 
+        # We need to make sure it's present.
+        # Simple strategy: Always add user_utterance as a new turn if it's the start of processing,
+        # otherwise (in loop) it might be better to rely on what's passed in current_turn_history.
+        
+        if not current_turn_history and not tool_results:
+             # Initial turn
              contents.append(types.Content(role="user", parts=[types.Part(text=user_utterance)]))
+        elif current_turn_history:
+             # Multi-turn processing
+             # First, ensure user_utterance is at the beginning of this session if not in history
+             # (This depends on how use_case constructs history. Assuming use_case manages history persistence ONLY at the end)
              
+             # We need to reconstruct the "current session" flow:
+             # User -> Model (Tool Call) -> Function (Result) -> ...
+             
+             # If history is empty, we must start with User.
+             # If history ends with Model, we expect Function.
+             
+             # To be safe, we reconstruct the full sequence of the current interaction:
+             # [User Utterance] + [Current Turn History (Model calls, Function results)]
+             
+             session_contents = []
+             session_contents.append(types.Content(role="user", parts=[types.Part(text=user_utterance)]))
+             
+             # Convert current_turn_history (dicts) to Content
+             for turn in current_turn_history:
+                 if turn['role'] == 'model':
+                     parts = []
+                     for part in turn['parts']:
+                         if 'function_call' in part:
+                             parts.append(types.Part(
+                                 function_call=types.FunctionCall(
+                                     name=part['function_call']['name'],
+                                     args=part['function_call']['args']
+                                 )
+                             ))
+                     session_contents.append(types.Content(role="model", parts=parts))
+                 elif turn['role'] == 'function':
+                     parts = []
+                     for part in turn['parts']:
+                         if 'function_response' in part:
+                             parts.append(types.Part(
+                                 function_response=types.FunctionResponse(
+                                     name=part['function_response']['name'],
+                                     response=part['function_response']['response']
+                                 )
+                             ))
+                     # SDK v0.2: function response is usually in 'tool' role
+                     session_contents.append(types.Content(role="tool", parts=parts))
+
+             contents.extend(session_contents)
+
         return contents
 
     async def perform_research(self, user_utterance: str, current_date: str, history: List[Dict[str, Any]] = None) -> str:
@@ -362,55 +385,6 @@ class GeminiAdapter(ILanguageModel):
         self, user_utterance: str, tool_results: List[Dict[str, Any]], history: List[Dict[str, Any]] = None,
         current_turn_history: List[Dict[str, Any]] = None
     ) -> str:
-        system_instruction = self._build_response_generation_instruction()
-        config = types.GenerateContentConfig(system_instruction=system_instruction)
-
-        contents = history or []
-        
-        if current_turn_history:
-            # マルチターン（ループ）実行の実績がある場合
-            contents.append({"role": "user", "parts": [{"text": user_utterance}]})
-            contents.extend(current_turn_history)
-        elif not tool_results:
-            # ツール実行なし
-            # 最後にユーザー発言を追加
-            contents.append({"role": "user", "parts": [{"text": user_utterance}]})
-        else:
-            # ツール実行あり
-            # 1. ユーザー発言
-            contents.append({"role": "user", "parts": [{"text": user_utterance}]})
-            
-            # 2. モデルのツールコール (履歴として必要だが、ここでは前のターンで生成されたと仮定するか、
-            #    あるいは tool_results に対応する tool_call が直前にある必要がある)
-            #    簡略化のため、tool_results を function_response として追加する
-            #    (Note: Geminiのマルチターンでは tool_call -> tool_response の順序が重要)
-            
-            # 実際の対話フローを再現するには、直前の generate_tool_calls の応答(model role)も履歴に含めるべきだが
-            # ここでは tool_results から "ユーザーがツールを実行して結果を返した" 形式で構成する
-            
-            parts = []
-            for result in tool_results:
-                 parts.append(
-                     types.Part(
-                         function_response=types.FunctionResponse(
-                             name=result["name"],
-                             response={"content": result["result"]} # dict check
-                         )
-                     )
-                 )
-            
-            # function_response は user ロールから返される (あるいは function ロール？ SDKによる)
-            # Gemini API では function_response は user role の一部、または独立した function role
-            # google-genai SDK 0.2.0 では通常 'function' role を使うことが多いが、'user' に含める場合もある
-            # ここでは 'function' role を試行
-            contents.append({"role": "function", "parts": parts})
-
-        if current_turn_history:
-             logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, current_turn_history_len={len(current_turn_history)}")
-        else:
-             logger.info(f"[RESPONSE_GEN_INPUT] user_utterance={log_oneline(user_utterance)}, tool_results_count={len(tool_results)}")        # ステップ3: 最終回答の生成
-        logger.info("Step 3: Generating final response...")
-
         # 最終回答生成用のプロンプトを取得
         instruction = self._get_response_instruction()
         if not instruction:
@@ -422,8 +396,9 @@ class GeminiAdapter(ILanguageModel):
             temperature=0.7
         )
 
-        # 簡易実装として、historyをすべてcontentsとして渡す generate_content を使用する
-        contents = self._convert_to_gemini_contents(user_utterance, history, tool_results)
+        # 履歴と現在のターンを結合してコンテンツを作成
+        # generate_response が呼ばれるときは、通常 current_turn_history (Model Call + Function Response) が構築済み
+        contents = self._convert_to_gemini_contents(user_utterance, history, tool_results, current_turn_history)
 
         try:
             # Use the existing async wrapper to call the API
@@ -438,6 +413,4 @@ class GeminiAdapter(ILanguageModel):
                 
         except Exception as e:
             logger.error(f"Error in generate_response: {e}")
-            return "申し訳ありません、エラーが発生しました。"
-
             return "申し訳ありません、エラーが発生しました。"
