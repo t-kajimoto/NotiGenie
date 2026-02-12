@@ -395,6 +395,43 @@ async def test_execute_create_with_vague_date(
     assert call_kwargs["properties"]["予定日表示"] == "未定"
 
 @pytest.mark.asyncio
+async def test_execute_create_with_period_expression(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """期間表現(今年中)の抽出テスト"""
+    # --- Arrange ---
+    user_utterance = "ハネムーンに今年中に行きたい"
+    current_date = "2024-01-01"
+
+    # ツールコール生成
+    # 期待されるプロパティ: 予定日表示="今年中"
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
+            "name": "create_page",
+            "args": {
+                "database_name": "master_db",
+                "title": "ハネムーン",
+                "properties": {
+                    "カテゴリ": "ToDo",
+                    "予定日表示": "今年中"
+                }
+            }
+        }],
+        []
+    ]
+
+    mock_language_model.generate_response.return_value = "ハネムーンをToDo（今年中）に追加しました。"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    mock_notion_repository.create_page.assert_called_once()
+    call_kwargs = mock_notion_repository.create_page.call_args.kwargs
+    assert call_kwargs["title"] == "ハネムーン"
+    assert call_kwargs["properties"]["予定日表示"] == "今年中"
+
+@pytest.mark.asyncio
 async def test_execute_with_history(
     use_case, mock_language_model, mock_session_repository
 ):
