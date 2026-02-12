@@ -518,3 +518,38 @@ async def test_execute_append_memo(
     assert "パスポート確認" in call_kwargs["properties"]["メモ"]
     assert "既存のメモ" in call_kwargs["properties"]["メモ"]
 
+@pytest.mark.asyncio
+async def test_hallucination_prevention(
+    use_case, mock_language_model, mock_notion_repository
+):
+    """幻覚防止テスト: 検索結果0件で更新できない場合、正直に報告するか"""
+    # --- Arrange ---
+    user_utterance = "ハネムーンのメモに追記して"
+    current_date = "2024-01-01"
+
+    # Search result is EMPTY (Page not found)
+    mock_notion_repository.search_database.return_value = []
+    
+    # Tool calls:
+    # 1. Search (Finds nothing)
+    # 2. No Update call (because not found) -> Just respond
+    mock_language_model.generate_tool_calls.side_effect = [
+        [{
+            "name": "search_database",
+            "args": {"query": "ハネムーン"}
+        }],
+        [] 
+    ]
+    
+    # Model should say "Not found"
+    mock_language_model.generate_response.return_value = "「ハネムーン」というページが見つかりませんでした。新規作成しますか？"
+
+    # --- Act ---
+    final_response = await use_case.execute(user_utterance, current_date, "test_session")
+
+    # --- Assert ---
+    mock_notion_repository.search_database.assert_called_once()
+    mock_notion_repository.update_page.assert_not_called() # Should NOT call update
+    
+    assert "見つかりませんでした" in final_response
+
