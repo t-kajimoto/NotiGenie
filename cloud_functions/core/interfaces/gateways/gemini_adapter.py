@@ -29,6 +29,8 @@ class GeminiAdapter(ILanguageModel):
         self.response_instruction = response_instruction
         self.notion_database_mapping = notion_database_mapping
         self.model_name = 'gemini-2.5-flash-lite' # Testing 2.5-flash-lite with function-only tools
+        self.system_instruction_path = os.path.join(os.path.dirname(__file__), "..", "..", "prompts", "system_instruction.md")
+        self.response_instruction_path = os.path.join(os.path.dirname(__file__), "..", "..", "prompts", "response_instruction.md")
 
     # ---------------------------------------------------------------------------
     # プロンプト構築メソッド群
