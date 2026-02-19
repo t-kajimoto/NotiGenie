@@ -3,7 +3,7 @@ import logging
 import datetime
 import pytz
 from typing import List, Dict, Any
-from ..core.interfaces.gateways.notion_adapter import NotionAdapter
+from core.interfaces.gateways.notion_adapter import NotionAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,10 @@ async def get_todo_list(notion_adapter: NotionAdapter, api_key: str) -> str:
                     category = cat_val.get("name", "")
                 else:
                     category = str(cat_val) if cat_val else ""
+
+            # カテゴリフィルタ: "TODO" 以外はスキップ
+            if category != "TODO":
+                continue
 
             # 完了判定: 完了日が入っていれば完了
             is_done = False
