@@ -5,7 +5,10 @@ import os
 import sys
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 日本標準時 (UTC+9)
+JST = timezone(timedelta(hours=9))
 from PIL import Image, ImageDraw, ImageFont
 
 # ログ設定
@@ -16,17 +19,25 @@ logger = logging.getLogger(__name__)
 API_URL_DEFAULT = "https://asia-northeast1-YOUR-PROJECT-ID.cloudfunctions.net/notigenie/api/todo_list"
 API_KEY_ENV = "NOTIGENIE_API_KEY"
 
-# フォント設定 (Raspberry Piの標準的な日本語フォントパス)
-FONT_PATH = "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf"
-if not os.path.exists(FONT_PATH):
-    # Docker (Debian/Ubuntu) default for fonts-noto-cjk
-    if os.path.exists("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"):
-        FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-    # フォールバック (Mac/Windows開発用)
-    elif sys.platform == "darwin":
-        FONT_PATH = "/System/Library/Fonts/Hiragino Sans GB.ttc"
-    elif sys.platform == "win32":
-        FONT_PATH = "C:\\Windows\\Fonts\\msgothic.ttc"
+# フォント設定: NotoSansCJK を最優先で使用
+FONT_CANDIDATES = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",   # Docker (fonts-noto-cjk)
+    "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",       # Raspberry Pi OS
+]
+# Mac/Windows開発用フォールバック
+if sys.platform == "darwin":
+    FONT_CANDIDATES.append("/System/Library/Fonts/Hiragino Sans GB.ttc")
+elif sys.platform == "win32":
+    FONT_CANDIDATES.append("C:\\Windows\\Fonts\\msgothic.ttc")
+
+FONT_PATH = None
+for candidate in FONT_CANDIDATES:
+    if os.path.exists(candidate):
+        FONT_PATH = candidate
+        break
+
+if not FONT_PATH:
+    logger.warning("No Japanese font found. Text may not render correctly.")
 
 # Sample Data for Mock/Testing
 SAMPLE_DATA = {
@@ -74,11 +85,45 @@ def get_todo_data(api_url, api_key):
         logger.error(f"Failed to fetch data: {e}")
         return None
 
+def _truncate_by_pixel(draw, text, font, max_width):
+    """
+    テキストをピクセル幅で切り詰める。
+    描画幅がmax_widthを超える場合、末尾を「...」に置き換えて収まるようにする。
+    """
+    # テキストがそのまま収まるならそのまま返す
+    try:
+        text_width = draw.textlength(text, font=font)
+    except AttributeError:
+        # Pillow < 8.0 互換: textsize を使用
+        text_width = draw.textsize(text, font=font)[0]
+
+    if text_width <= max_width:
+        return text
+
+    # 1文字ずつ削って「...」を付けて収まるか確認
+    ellipsis = "..."
+    for i in range(len(text), 0, -1):
+        truncated = text[:i] + ellipsis
+        try:
+            w = draw.textlength(truncated, font=font)
+        except AttributeError:
+            w = draw.textsize(truncated, font=font)[0]
+        if w <= max_width:
+            return truncated
+
+    return ellipsis
+
+
 def draw_todo_list(data, width=480, height=800):
     """
     ToDoリストを画像に描画する (縦向き 480x800)
+    
+    レイアウト戦略:
+    1. まず「最近の完了」セクションの必要高さを計算（下部に最低限のスペース）
+    2. 残りのスペースを全て未完了タスクに割り当てる
+    3. 完了タスクがなければ「なし」と表示
     """
-    image = Image.new('1', (width, height), 255)  # 1: 1-bit pixels, black and white, stored with one pixel per byte
+    image = Image.new('1', (width, height), 255)  # 1-bit白黒
     draw = ImageDraw.Draw(image)
 
     try:
@@ -93,15 +138,38 @@ def draw_todo_list(data, width=480, height=800):
         font_detail = ImageFont.load_default()
         font_done = ImageFont.load_default()
 
-    # ヘッダー (日付)
-    current_date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    draw.text((10, 10), f"NotiGenie ToDo  {current_date}", font=font_detail, fill=0)
+    # =========================================================
+    # Step 1: 「最近の完了」セクションの必要高さを先に計算
+    # =========================================================
+    dones = data.get("dones", [])
+    # ヘッダー行 + 区切り線のスペース
+    done_section_height = 60  # ヘッダー(40px) + マージン(20px)
+    if dones:
+        # 各完了タスクの行数分 (1行25px)
+        done_section_height += len(dones) * 25 + 10  # +下マージン
+    else:
+        # 「なし」の1行分
+        done_section_height += 30
+
+    # 完了セクションの開始Y座標（画面下部から計算）
+    done_section_y = height - done_section_height
+
+    # 未完了タスクが使える最大Y座標（完了セクションの上 - マージン）
+    todo_max_y = done_section_y - 20
+
+    # =========================================================
+    # Step 2: ヘッダー (日付) 描画
+    # =========================================================
+    current_date = datetime.now(JST).strftime("%Y-%m-%d %H:%M")
+    draw.text((10, 10), f"NotiGenie TODO  {current_date}", font=font_detail, fill=0)
     draw.line((10, 40, width-10, 40), fill=0)
 
     y = 50
 
-    # 未完了タスク (TODO)
-    draw.text((10, y), "【未完了タスク】", font=font_header, fill=0)
+    # =========================================================
+    # Step 3: 未完了タスク描画（利用可能なスペースを全て使う）
+    # =========================================================
+    draw.text((10, y), "【TODO】", font=font_header, fill=0)
     y += 50
     
     todos = data.get("todos", [])
@@ -116,7 +184,7 @@ def draw_todo_list(data, width=480, height=800):
         draw.text((20, y), f"{chk_mark} {name}", font=font_title, fill=0)
         y += 35
         
-        # 期限・メモ情報 -> 1行または2行で表示
+        # 期限・メモ情報
         deadline = todo.get("deadline", "")
         display_date = todo.get("display_date", "")
         memo = todo.get("memo", "")
@@ -128,33 +196,41 @@ def draw_todo_list(data, width=480, height=800):
             info_text += f"[期限: {deadline}] "
             
         if memo:
-            # メモが長い場合は切り詰める簡易処理
-            if len(memo) > 20: 
-                memo = memo[:20] + "..."
-            info_text += f"{memo}"
+            # 改行を半角スペースに置換して1行にまとめる
+            memo = memo.replace("\n", " ").replace("\r", " ").strip()
+            info_text += memo
             
         if info_text:
+            # ピクセル幅ベースで切り詰め（画面幅 - 左右マージン）
+            max_text_width = width - 60  # 左50px + 右10px
+            info_text = _truncate_by_pixel(draw, info_text, font_detail, max_text_width)            
             draw.text((50, y), info_text, font=font_detail, fill=0)
             y += 30
         
-        y += 10 # Spacer
-        if y > height - 150: # 下部は完了リスト用に空ける
+        y += 10  # タスク間のスペーサー
+
+        # 完了セクション手前で打ち切り
+        if y > todo_max_y:
             break
 
-    # 完了タスク (DONE) - 下部に表示
-    y_done_start = height - 200
-    draw.line((10, y_done_start - 10, width-10, y_done_start - 10), fill=0)
-    draw.text((10, y_done_start), "【最近の完了】 (直近3日)", font=font_header, fill=0)
-    y = y_done_start + 50
+    # =========================================================
+    # Step 4: 「最近の完了」セクション描画（下部に最低限のスペース）
+    # =========================================================
+    y = done_section_y
+    draw.line((10, y - 5, width-10, y - 5), fill=0)
+    draw.text((10, y), "【Done】", font=font_header, fill=0)
+    y += 50
     
-    dones = data.get("dones", [])
-    for done in dones:
-        name = done.get("name", "")
-        date = done.get("done_date", "")
-        draw.text((20, y), f"■ {name} ({date})", font=font_done, fill=0)
-        y += 25
-        if y > height - 10:
-            break
+    if not dones:
+        draw.text((30, y), "なし", font=font_done, fill=0)
+    else:
+        for done in dones:
+            name = done.get("name", "")
+            date = done.get("done_date", "")
+            draw.text((20, y), f"■ {name} ({date})", font=font_done, fill=0)
+            y += 25
+            if y > height - 10:
+                break
 
     return image
 
