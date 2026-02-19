@@ -7,6 +7,43 @@ import uuid
 from typing import Dict, Any, Optional, List, Union
 from notion_client import Client, APIResponseError
 from ...domain.interfaces import INotionRepository
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception, before_sleep_log
+
+# ---------------------------------------------------------------------------
+# Retry Configuration
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Retry Configuration
+# ---------------------------------------------------------------------------
+def _is_retryable_error(exception):
+    """
+    リトライすべきエラーかどうかを判定します。
+    - 5xx Server Errors (500, 502, 503, 504)
+    - 429 Rate Limit Exceeded
+    """
+    if isinstance(exception, APIResponseError):
+        # status code check
+        if exception.status == 429 or exception.status >= 500:
+            return True
+        # code check (redundant but safe)
+        return exception.code in [
+            "service_unavailable", 
+            "internal_server_error", 
+            "bad_gateway", 
+            "gateway_timeout", 
+            "rate_limited"
+        ]
+    return False
+
+def _return_error_dict(retry_state):
+    """
+    リトライ回数上限に達した場合に、エラー辞書を返します。
+    これにより、呼び出し元（UseCase）で例外ハンドリングを追加せずに済みます。
+    """
+    exception = retry_state.outcome.exception()
+    msg = f"Notion API Error (Max retries exceeded): {str(exception)}"
+    logger.error(msg)
+    return {"error": msg}
 
 # ---------------------------------------------------------------------------
 # ロギング設定
@@ -202,6 +239,13 @@ class NotionAdapter(INotionRepository):
         return formatted_props
 
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(_is_retryable_error),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        retry_error_callback=_return_error_dict
+    )
     def search_database(self, query: Optional[str] = None, database_name: Optional[str] = None, filter_conditions: Optional[str] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         データベースからページを検索します。AIが使用する主要なツールです。
@@ -216,10 +260,12 @@ class NotionAdapter(INotionRepository):
         Returns:
             List[Dict] | Dict: 検索結果の簡略化されたリスト、またはエラー情報。
         """
-        logger.info(f"Searching database. Query: {query}, DB Name: {database_name}, Filter: {filter_conditions}")
+        # logger.info(f"Searching database. Query: {query}, DB Name: {database_name}, Filter: {filter_conditions}")
 
         if not self.client:
             return {"error": "Notion Client not initialized"}
+        
+        payload_for_logging = {} # For error logging
 
         try:
             database_id = None
@@ -328,9 +374,11 @@ class NotionAdapter(INotionRepository):
                 # ---------------------------------------------------------
                 # APIリクエストの実行
                 # ---------------------------------------------------------
+                payload_for_logging = {"database_id": database_id, **payload}
+                logger.info(f"[Notion Request] Method: search (query), Payload: {json.dumps(payload_for_logging, ensure_ascii=False)}")
+
                 # ライブラリのバージョン差異による互換性対応
                 if hasattr(self.client.databases, "query"):
-                    logger.info("Using client.databases.query method.")
                     response = self.client.databases.query(
                         database_id=database_id,
                         **payload
@@ -338,8 +386,6 @@ class NotionAdapter(INotionRepository):
                 else:
                     # client.databases.query が存在しない古いバージョンや環境でのフォールバック
                     path = f"databases/{database_id}/query"
-                    logger.info(f"Using client.request fallback. Path: {path}")
-
                     response = self.client.request(
                         path=path,
                         method="POST",
@@ -350,6 +396,10 @@ class NotionAdapter(INotionRepository):
                 # 精度が低いため、基本的には database_name を指定することを推奨
                 search_params = {"query": query} if query else {}
                 search_params["filter"] = {"value": "page", "property": "object"}
+                
+                payload_for_logging = search_params
+                logger.info(f"[Notion Request] Method: search (global), Payload: {json.dumps(payload_for_logging, ensure_ascii=False)}")
+                
                 response = self.client.search(**search_params)
 
             # ---------------------------------------------------------
@@ -396,19 +446,35 @@ class NotionAdapter(INotionRepository):
                         simplified["properties"][k] = content
 
                 simplified_results.append(simplified)
-
+            
+            logger.info(f"[Notion Response] Method: search_database, Count: {len(simplified_results)}")
             return simplified_results
 
         except APIResponseError as e:
-            msg = f"Notion API Error in search: {e.code} - {str(e)}"
-            logger.error(msg)
+            # tenacity will catch this if reraise=True and it matches retry criteria
+            # But we only want retry on server errors. Client errors (400) should log and return error.
+            if _is_retryable_error(e):
+                logger.warning(f"Retryable Notion Error: {e.code}. Retrying...")
+                raise # tenacity catches this
+            
+            # Non-retryable error (e.g. 400 Bad Request)
+            msg = f"Notion API Error in search (Non-retryable): {e.code} - {str(e)}"
+            logger.error(f"{msg}. Payload: {json.dumps(payload_for_logging, ensure_ascii=False)}")
             return {"error": msg}
+            
         except Exception as e:
             msg = f"Unexpected Error in search: {str(e)}"
             logger.error(msg)
             logger.error(traceback.format_exc())
             return {"error": msg}
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(_is_retryable_error),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        retry_error_callback=_return_error_dict
+    )
     def create_page(self, database_name: str, title: str, properties: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         データベースに新しいページを作成します。
@@ -421,128 +487,160 @@ class NotionAdapter(INotionRepository):
         Returns:
             Dict: 作成結果。
         """
-        logger.info(f"Creating page. DB: {database_name}, Title: {title}")
+        # logger.info(f"Creating page. DB: {database_name}, Title: {title}")
 
         if not self.client:
             return {"error": "Notion Client not initialized"}
 
-        database_id = self._resolve_database_id(database_name)
-        if not database_id:
-            return {"error": f"Database '{database_name}' not found."}
+        payload_for_logging = {} # For error logging
 
         try:
-             database_id = str(uuid.UUID(database_id))
-        except ValueError:
-            return {"error": f"Invalid Database ID for {database_name}"}
+            database_id = self._resolve_database_id(database_name)
+            if not database_id:
+                return {"error": f"Database '{database_name}' not found."}
 
-        if properties is None:
-            properties = {}
+            try:
+                 database_id = str(uuid.UUID(database_id))
+            except ValueError:
+                return {"error": f"Invalid Database ID for {database_name}"}
 
-        # タイトルプロパティ名の解決と設定
-        title_prop_name = "名前" # Default fallback
-        if database_name in self.notion_database_mapping:
-             props = self.notion_database_mapping[database_name].get("properties", {})
-             for k, v in props.items():
-                 if v.get("type") == "title":
-                     title_prop_name = k
-                     break
+            if properties is None:
+                properties = {}
 
-        # Geminiがpropertiesにタイトルを含めてしまう場合の防御処理
-        # タイトルは引数 title から設定するため、properties からは除去する
-        if title_prop_name in properties:
-            logger.warning(f"Removing title property '{title_prop_name}' from properties (use 'title' argument instead)")
-            properties = {k: v for k, v in properties.items() if k != title_prop_name}
+            # タイトルプロパティ名の解決と設定
+            title_prop_name = "名前" # Default fallback
+            if database_name in self.notion_database_mapping:
+                 props = self.notion_database_mapping[database_name].get("properties", {})
+                 for k, v in props.items():
+                     if v.get("type") == "title":
+                         title_prop_name = k
+                         break
 
-        # フォーマット変換 (Simple values -> Notion API Objects)
-        formatted_properties = self._format_properties_for_api(database_name, properties)
+            # Geminiがpropertiesにタイトルを含めてしまう場合の防御処理
+            # タイトルは引数 title から設定するため、properties からは除去する
+            if title_prop_name in properties:
+                logger.warning(f"Removing title property '{title_prop_name}' from properties (use 'title' argument instead)")
+                properties = {k: v for k, v in properties.items() if k != title_prop_name}
 
-        # タイトルが properties に含まれていても、引数の title を優先して上書きする
-        formatted_properties[title_prop_name] = {
-            "title": [
-                {
-                    "text": {
-                        "content": title
+            # フォーマット変換 (Simple values -> Notion API Objects)
+            formatted_properties = self._format_properties_for_api(database_name, properties)
+
+            # タイトルが properties に含まれていても、引数の title を優先して上書きする
+            formatted_properties[title_prop_name] = {
+                "title": [
+                    {
+                        "text": {
+                            "content": title
+                        }
                     }
-                }
-            ]
-        }
+                ]
+            }
+            
+            payload = {
+                "parent": {"database_id": database_id},
+                "properties": formatted_properties
+            }
+            payload_for_logging = payload
+            logger.info(f"[Notion Request] Method: create_page, Payload: {json.dumps(payload, ensure_ascii=False)}")
 
-        try:
-            response = self.client.pages.create(
-                parent={"database_id": database_id},
-                properties=formatted_properties
-            )
+            response = self.client.pages.create(**payload)
+            
+            logger.info(f"[Notion Response] Method: create_page, ID: {response.get('id')}, URL: {response.get('url')}")
             return {"status": "success", "id": response.get("id"), "url": response.get("url")}
+
         except APIResponseError as e:
-            msg = f"Notion API Error in create_page: {e.code} - {str(e)}"
-            logger.error(msg)
+            if _is_retryable_error(e):
+                logger.warning(f"Retryable Notion Error: {e.code}. Retrying...")
+                raise 
+            
+            msg = f"Notion API Error in create_page (Non-retryable): {e.code} - {str(e)}"
+            logger.error(f"{msg}. Payload: {json.dumps(payload_for_logging, ensure_ascii=False)}")
             return {"error": msg}
+            
         except Exception as e:
             msg = f"Unexpected Error in create_page: {str(e)}"
             logger.error(msg)
             return {"error": msg}
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(_is_retryable_error),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        retry_error_callback=_return_error_dict
+    )
     def update_page(self, page_id: str, properties: Dict[str, Any], database_name: Optional[str] = None) -> Dict[str, Any]:
         """
         既存のページを更新します。ステータス変更などで使用されます。
         """
         # IDの正規化（ハイフン補完など）
         page_id = self._normalize_uuid(page_id)
-        logger.info(f"Updating page. ID: {page_id}")
+        # logger.info(f"Updating page. ID: {page_id}")
 
         if not self.client:
             return {"error": "Notion Client not initialized"}
 
-        # 更新対象のデータベースを知る術がない (page_idからは分からない) ため、
-        # propertiesのキーからデータベースを推測するか、あるいは全DBを走査する...のはコストが高い。
-        # ここでは、propertiesに含まれるキー名と全DBのスキーマを比較して、マッチするプロパティ型の解決を試みる。
-        # ただし、同じプロパティ名が複数のDBにある場合（例: "完了フラグ"）は最初に見つかった型を使う。
-        # これは完全ではないが、多くのケースで動作する。
-        # より良い方法は、update_pageにもdatabase_name引数を追加することだが、
-        # 既存インターフェースを変えるリスクがあるため、まずは簡易的な解決策をとる。
-
-        # 1. propertiesのフォーマット変換
-        # page_idからdatabase_idを取得するのはAPIコールが必要だが、retrieveしてからupdateするのは2度手間。
-        # しかし、型解決にはスキーマが必要。
-        # ここでは「全ての既知のDB定義からプロパティ名を探す」戦略をとる。
-
-        formatted_properties = {}
-        for prop_name, value in properties.items():
-            prop_type = None
-            found_db = database_name # [Round 9] 引数があればそれを優先
-
-            # データベース名が指定されていない場合は、プロパティ名から型を検索
-            if not found_db:
-                for db_name, db_info in self.notion_database_mapping.items():
-                    p_conf = db_info.get("properties", {}).get(prop_name)
-                    if p_conf:
-                        prop_type = p_conf.get("type")
-                        found_db = db_name
-                        break
-
-            if found_db:
-                # 変換メソッドを通す
-                temp_dict = self._format_properties_for_api(found_db, {prop_name: value})
-                formatted_properties.update(temp_dict)
-            else:
-                # 見つからない場合はそのまま
-                formatted_properties[prop_name] = value
+        payload_for_logging = {} # For error logging
 
         try:
-            response = self.client.pages.update(
-                page_id=page_id,
-                properties=formatted_properties
-            )
+            # 更新対象のデータベースを知る術がない (page_idからは分からない) ため、
+            # propertiesのキーからデータベースを推測する... (省略)
+            
+            formatted_properties = {}
+            for prop_name, value in properties.items():
+                prop_type = None
+                found_db = database_name # [Round 9] 引数があればそれを優先
+
+                # データベース名が指定されていない場合は、プロパティ名から型を検索
+                if not found_db:
+                    for db_name, db_info in self.notion_database_mapping.items():
+                        p_conf = db_info.get("properties", {}).get(prop_name)
+                        if p_conf:
+                            prop_type = p_conf.get("type")
+                            found_db = db_name
+                            break
+
+                if found_db:
+                    # 変換メソッドを通す
+                    temp_dict = self._format_properties_for_api(found_db, {prop_name: value})
+                    formatted_properties.update(temp_dict)
+                else:
+                    # 見つからない場合はそのまま
+                    formatted_properties[prop_name] = value
+
+            payload = {
+                "page_id": page_id,
+                "properties": formatted_properties
+            }
+            payload_for_logging = payload
+            logger.info(f"[Notion Request] Method: update_page, Payload: {json.dumps(payload, ensure_ascii=False)}")
+
+            response = self.client.pages.update(**payload)
+            
+            logger.info(f"[Notion Response] Method: update_page, ID: {response.get('id')}")
             return {"status": "success", "id": response.get("id")}
+
         except APIResponseError as e:
-            msg = f"Notion API Error in update_page: {e.code} - {str(e)}"
-            logger.error(msg)
+            if _is_retryable_error(e):
+                logger.warning(f"Retryable Notion Error: {e.code}. Retrying...")
+                raise
+            
+            msg = f"Notion API Error in update_page (Non-retryable): {e.code} - {str(e)}"
+            logger.error(f"{msg}. Payload: {json.dumps(payload_for_logging, ensure_ascii=False)}")
             return {"error": msg}
+            
         except Exception as e:
             msg = f"Unexpected Error in update_page: {str(e)}"
             logger.error(msg)
             return {"error": msg}
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(_is_retryable_error),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True 
+    )
     def append_block(self, block_id: str, children: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         ページやブロックの下に、新しいブロック（子要素）を追加します。
@@ -550,21 +648,35 @@ class NotionAdapter(INotionRepository):
         """
         # IDの正規化
         block_id = self._normalize_uuid(block_id)
-        logger.info(f"Appending block. ID: {block_id}")
+        # logger.info(f"Appending block. ID: {block_id}")
 
         if not self.client:
             return {"error": "Notion Client not initialized"}
 
+        payload_for_logging = {} # For error logging
+
         try:
-            response = self.client.blocks.children.append(
-                block_id=block_id,
-                children=children
-            )
+            payload = {
+                "block_id": block_id,
+                "children": children
+            }
+            payload_for_logging = payload
+            logger.info(f"[Notion Request] Method: append_block, Payload: {json.dumps(payload, ensure_ascii=False)}")
+
+            response = self.client.blocks.children.append(**payload)
+            
+            logger.info(f"[Notion Response] Method: append_block, Results: {len(response.get('results', []))}")
             return {"status": "success", "results_count": len(response.get("results", []))}
+
         except APIResponseError as e:
-            msg = f"Notion API Error in append_block: {e.code} - {str(e)}"
-            logger.error(msg)
+            if _is_retryable_error(e):
+                logger.warning(f"Retryable Notion Error: {e.code}. Retrying...")
+                raise
+            
+            msg = f"Notion API Error in append_block (Non-retryable): {e.code} - {str(e)}"
+            logger.error(f"{msg}. Payload: {json.dumps(payload_for_logging, ensure_ascii=False)}")
             return {"error": msg}
+            
         except Exception as e:
             msg = f"Unexpected Error in append_block: {str(e)}"
             logger.error(msg)
