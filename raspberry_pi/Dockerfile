@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     alsa-utils \
     usbutils \
     gcc \
+    fonts-noto-cjk \
+    libjpeg-dev \
+    zlib1g-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

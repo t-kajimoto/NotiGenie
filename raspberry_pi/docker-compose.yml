@@ -4,11 +4,14 @@ services:
     env_file:
       - .env
     privileged: true # Allow access to GPIO/SPI
+    network_mode: host # ホストネットワークを直接使用（API通信の安定性向上）
     volumes:
       - .:/app
       - ./aquestalk:/app/aquestalk # AquesTalk Pi binary (download manually)
     devices:
       - "/dev/snd:/dev/snd" # Access to microphone and speakers
+      - "/dev/spidev0.0:/dev/spidev0.0" # SPI for E-Paper display
+      - "/dev/gpiomem:/dev/gpiomem" # GPIO memory for E-Paper control
     group_add:
       - audio
     environment:

@@ -16,8 +16,10 @@ google-cloud-speech
 python-dotenv
 
 # E-Paper
-# # Pillow
-# # waveshare-epaper
+Pillow
+waveshare-epaper
+gpiozero
+lgpio
 
 # Testing (dev only - not installed in production Docker)
 # pytest
