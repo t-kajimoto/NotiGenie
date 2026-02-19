@@ -1,12 +1,19 @@
 import os
+import sys
 import time
 import requests
 import datetime
 import glob
+import threading
+import logging
 from wake_word_engine import WakeWordEngine
 from stt_client import STTClient, MicrophoneStream
 from tts_factory import create_tts_client
 from dotenv import load_dotenv
+from epaper_display import draw_todo_list, get_todo_data, SAMPLE_DATA
+
+# ログ設定
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -15,10 +22,80 @@ PICOVOICE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
 CLOUD_FUNCTIONS_URL = os.getenv("CLOUD_FUNCTIONS_URL")
 NOTIGENIE_API_KEY = os.getenv("NOTIGENIE_API_KEY")
 
+# E-Paper表示の更新間隔（秒）
+EPAPER_UPDATE_INTERVAL = int(os.getenv("EPAPER_UPDATE_INTERVAL", "1800"))  # 30分
+
+# E-Paper ToDo API URL（Cloud Functionsのtodo_listエンドポイント）
+EPAPER_TODO_API_URL = os.getenv(
+    "EPAPER_TODO_API_URL",
+    "https://asia-northeast1-notigenie.cloudfunctions.net/notigenie-backend/api/todo_list"
+)
+
+def update_epaper_display():
+    """
+    E-Paperディスプレイを更新する。
+    APIからToDoデータを取得し、画像を生成してE-Paperに表示する。
+    """
+    try:
+        logger.info("E-Paper: Fetching todo data...")
+        data = get_todo_data(EPAPER_TODO_API_URL, NOTIGENIE_API_KEY)
+        if not data:
+            logger.warning("E-Paper: No data received from API, using sample data.")
+            data = SAMPLE_DATA
+
+        logger.info("E-Paper: Generating image...")
+        image = draw_todo_list(data)
+
+        logger.info("E-Paper: Initializing display...")
+        # waveshare-epaperパッケージはネストされたパス構造のため、
+        # sys.pathに追加してからインポートする必要がある
+        import glob as _glob
+        epd7in5_V2 = None
+        for pattern in [
+            '/usr/local/lib/python3.*/dist-packages/epaper/e-Paper/RaspberryPi_JetsonNano/python/lib',
+            '/home/*/.local/lib/python3.*/site-packages/epaper/e-Paper/RaspberryPi_JetsonNano/python/lib',
+        ]:
+            matches = _glob.glob(pattern)
+            for match in matches:
+                if match not in sys.path:
+                    sys.path.insert(0, match)
+        try:
+            from waveshare_epd import epd7in5_V2
+        except ImportError as ie:
+            logger.error(f"E-Paper: waveshare_epd import failed: {ie}")
+            return
+
+        epd = epd7in5_V2.EPD()
+        epd.init()
+        epd.Clear()
+
+        logger.info("E-Paper: Displaying...")
+        epd.display(epd.getbuffer(image))
+
+        logger.info("E-Paper: Sleeping display...")
+        epd.sleep()
+
+        logger.info("E-Paper: Update complete!")
+    except Exception as e:
+        logger.error(f"E-Paper update error: {e}")
+
+
+def epaper_periodic_update():
+    """
+    E-Paperディスプレイを定期的に更新するバックグラウンドスレッド。
+    初回は即座に実行し、その後は指定間隔で繰り返す。
+    """
+    while True:
+        update_epaper_display()
+        logger.info(f"E-Paper: Next update in {EPAPER_UPDATE_INTERVAL}s")
+        time.sleep(EPAPER_UPDATE_INTERVAL)
+
+
 def main():
     """
     Main application loop.
     Wake Word -> Record -> STT -> Cloud Functions -> TTS
+    E-Paper display updates run in a background thread.
     """
     if not PICOVOICE_ACCESS_KEY:
         print("Error: PICOVOICE_ACCESS_KEY is not set.")
@@ -59,6 +136,11 @@ def main():
 
     stt_client = STTClient(rate=48000)
     tts_client = create_tts_client()  # 環境変数 TTS_ENGINE で切り替え
+
+    # E-Paperディスプレイの定期更新をバックグラウンドスレッドで起動
+    epaper_thread = threading.Thread(target=epaper_periodic_update, daemon=True)
+    epaper_thread.start()
+    logger.info("E-Paper background update thread started.")
 
     print("NotiGenie Client Started.")
 
