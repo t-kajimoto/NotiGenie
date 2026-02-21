@@ -119,13 +119,32 @@ docker compose logs -f client
 
 マイクに向かって話しかけて動作を確認してください。
 
-## 5. ウェイクワードの設定 (任意)
-
-デフォルトでは `Porcupine` などの標準キーワードで反応しますが、カスタムウェイクワード（"Hey Genie"など）を使用したい場合は、Picovoice Consoleで作成した `.ppn` ファイル（Raspberry Pi用）をこのディレクトリに配置し、再起動してください。
-
 ```bash
 # ファイル配置後
 docker compose restart client
+```
+
+## 運用上の注意（重要）
+
+### シャットダウン・再起動時の注意
+
+- **コンテナの永続化**: 本アプリは `docker-compose.yml` 内で `restart: always` が設定されています。そのため、ラズパイ本体を再起動（`sudo reboot`）や、一度電源を切ってから再投入（シャットダウン後の起動）した場合、自動的に NotiGenie が立ち上がります。
+- **やってはいけないこと**: `docker compose down` を実行して終了すると、**コンテナ自体が削除される**ため、次回のラズパイ起動時に自動実行されません。
+- **推奨される終了方法**: メンテナンス等で一時的に止めたい場合は `docker compose stop` を使用してください。ラズパイ自体を終了させる場合は、そのまま `sudo shutdown -h now` を実行して問題ありません。
+
+### 起動していない場合の確認
+
+もしラズパイを起動しても E-Paper が更新されない、または反応がない場合は、SSH で接続して以下のコマンドを実行してください：
+
+```bash
+cd ~/notigenie-client
+docker compose ps
+```
+
+もし STATUS が `Up` でない、または一覧に何も表示されない場合は、以下のコマンドで再生成・起動してください：
+
+```bash
+docker compose up -d
 ```
 
 ## トラブルシューティング
