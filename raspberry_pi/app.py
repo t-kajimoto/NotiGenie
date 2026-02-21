@@ -35,14 +35,29 @@ def update_epaper_display():
     """
     E-Paperディスプレイを更新する。
     APIからToDoデータを取得し、画像を生成してE-Paperに表示する。
+    一時的なネットワークエラーに備え、最大3回のリトライを行います。
     """
-    try:
-        logger.info("E-Paper: Fetching todo data...")
-        data = get_todo_data(EPAPER_TODO_API_URL, NOTIGENIE_API_KEY)
-        if not data:
-            logger.warning("E-Paper: No data received from API, using sample data.")
-            data = SAMPLE_DATA
+    MAX_RETRIES = 3
+    RETRY_DELAY = 60  # 1分
 
+    data = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            logger.info(f"E-Paper: Fetching todo data (Attempt {attempt + 1}/{MAX_RETRIES})...")
+            data = get_todo_data(EPAPER_TODO_API_URL, NOTIGENIE_API_KEY)
+            if data:
+                break
+        except Exception as e:
+            logger.warning(f"E-Paper: Fetch attempt {attempt + 1} failed: {e}")
+        
+        if attempt < MAX_RETRIES - 1:
+            time.sleep(RETRY_DELAY)
+
+    if not data:
+        logger.error("E-Paper: Failed to fetch data after all attempts. Aborting update to maintain current display.")
+        return
+
+    try:
         logger.info("E-Paper: Generating image...")
         image = draw_todo_list(data)
 
