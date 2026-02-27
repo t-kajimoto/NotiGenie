@@ -6,8 +6,8 @@ import yaml
 import traceback
 import logging
 import sys
+import asyncio
 from typing import Tuple
-from asgiref.sync import async_to_sync
 from linebot.v3.exceptions import InvalidSignatureError
 
 # ---------------------------------------------------------------------------
@@ -247,12 +247,19 @@ def main(request: Request):
     Google Cloud FunctionsのHTTPエントリーポイント。
 
     何をやっているか:
-    非同期関数 `main_logic` を `async_to_sync` でラップして同期的に呼び出します。
+    非同期関数 `main_logic` を `asyncio.run()` でラップして同期的に呼び出します。
 
     なぜやっているか:
     現在の Google Cloud Functions (Python runtime) の `functions-framework` は
     WSGIベースであり、エントリーポイント関数は同期的である必要があります。
     一方、内部ロジック（LINE SDKやGemini API呼び出し）は効率のために非同期（async/await）で実装したいため、
     この変換層（ブリッジ）が必要になります。
+
+    なぜ asyncio.run() を使うか（async_to_sync ではなく）:
+    async_to_sync（asgiref）は内部で独自のイベントループ管理を行うため、
+    gRPCのCバインディング（abseil-cpp）のmutex管理と衝突し、
+    SIGABRT（signal 6）でプロセスがクラッシュすることがあります。
+    asyncio.run() は毎回クリーンなイベントループを作成・終了するため、
+    この競合を回避できます。
     """
-    return async_to_sync(main_logic)(request)
+    return asyncio.run(main_logic(request))
